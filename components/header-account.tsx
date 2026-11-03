@@ -24,9 +24,9 @@ export default function HeaderAccount() {
   if (!isReady) {
     return (
       <div className="header-actions">
-        <Button className="login-button" href="/login">
+        <Link className="login-button" href="/login">
           Войти
-        </Button>
+        </Link>
         <Button className="publish-button" variant="contained" href="/add">
           <span aria-hidden="true">＋</span> Разместить объявление
         </Button>
@@ -39,15 +39,15 @@ export default function HeaderAccount() {
       {user ? (
         <>
           <span className="header-user-name">{user.name}</span>
-          <Button className="login-button" onClick={handleLogout}>
+          <Button className="logout-button" onClick={handleLogout}>
             Выйти
           </Button>
         </>
       ) : (
         <>
-          <Button className="login-button" href="/login">
+          <Link className="login-button" href="/login">
             Войти
-          </Button>
+          </Link>
           <Link className="register-header-link" href="/register">
             Регистрация
           </Link>

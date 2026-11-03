@@ -1298,13 +1298,24 @@ a {
 
 .header-actions .login-button,
 .header-account .login-button {
+  display: inline-flex;
+  min-height: 42px;
   min-width: 74px;
-  color: #3e4c40;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  color: #737b73;
+  font-size: 13px;
+  font-weight: 550;
+  text-decoration: none;
+  transition: color 160ms ease;
 }
 
 .header-actions .login-button:hover,
 .header-account .login-button:hover {
-  background: #f3f5f1;
+  background: transparent;
+  color: var(--green);
+  text-decoration: none;
 }
 
 .header-actions .publish-button,
@@ -2143,7 +2154,7 @@ a {
     display: inline-flex;
     min-width: 42px;
     padding: 0 4px;
-    font-size: 9px;
+    font-size: 10px;
   }
 
   .register-header-link {
