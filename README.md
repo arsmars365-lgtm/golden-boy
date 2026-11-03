@@ -12,6 +12,8 @@ npm run dev
 
 Открой [http://localhost:3000](http://localhost:3000).
 
+Для запуска production-сборки выполни `npm run build`, затем `npm run start`.
+
 ## Страницы MVP
 
 - `/` — лента с поиском и фильтрами.
