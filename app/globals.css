@@ -1318,6 +1318,15 @@ a {
   text-decoration: none;
 }
 
+.header-account .logout-button {
+  background: #a85e4d;
+  color: #fff;
+}
+
+.header-account .logout-button:hover {
+  background: #8f4b3c;
+}
+
 .header-actions .publish-button,
 .header-account .publish-button,
 .search-panel .search-button,
