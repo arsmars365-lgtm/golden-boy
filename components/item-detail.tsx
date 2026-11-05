@@ -70,11 +70,11 @@ export default function ItemDetail({ id }: { id: string }) {
   const [editPlace, setEditPlace] = useState("");
   const [editDate, setEditDate] = useState("");
   const [editDetails, setEditDetails] = useState("");
-  const [editTelegram, setEditTelegram] = useState("");
   const item =
     storedItems.find((storedItem) => storedItem.id === id) ??
     DEMO_ITEMS.find((demoItem) => demoItem.id === id) ??
     null;
+  const itemOwnerId = item?.ownerId;
   const isExampleItem = DEMO_ITEMS.some((demoItem) => demoItem.id === id);
   const isOwnItem =
     isReady &&
@@ -114,7 +114,6 @@ export default function ItemDetail({ id }: { id: string }) {
     setEditPlace(item.place);
     setEditDate(item.date ?? "");
     setEditDetails(item.details);
-    setEditTelegram(item.telegram ?? "");
     setActionError("");
     setIsEditing(true);
   }
@@ -122,11 +121,6 @@ export default function ItemDetail({ id }: { id: string }) {
   async function handleEditSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setActionError("");
-    const telegramUsername = editTelegram.trim().replace(/^@/, "");
-    if (!/^[A-Za-z0-9_]{5,32}$/.test(telegramUsername)) {
-      setActionError(t("form.error.telegram"));
-      return;
-    }
     setIsSavingEdit(true);
     try {
       if (!user) throw new Error("Войди в аккаунт.");
@@ -137,7 +131,6 @@ export default function ItemDetail({ id }: { id: string }) {
         place: editPlace,
         date: editDate,
         details: editDetails,
-        telegram: telegramUsername,
       });
       setIsEditing(false);
       setActionError("");
@@ -251,12 +244,6 @@ export default function ItemDetail({ id }: { id: string }) {
       </main>
     );
   }
-
-  const telegramUsername = item.telegram?.trim().replace(/^@/, "");
-  const validTelegramUsername =
-    telegramUsername && /^[A-Za-z0-9_]{5,32}$/.test(telegramUsername)
-      ? telegramUsername
-      : null;
 
   return (
     <main className="foundly-shell container-fluid px-0">
@@ -415,7 +402,7 @@ export default function ItemDetail({ id }: { id: string }) {
               );
             })()}
 
-            {validTelegramUsername ? (
+            {itemOwnerId && itemOwnerId !== user?.id && !isOwnItem ? (
               <div className="detail-contact">
                 <div>
                   <h2>{t("detail.contact")}</h2>
@@ -423,27 +410,24 @@ export default function ItemDetail({ id }: { id: string }) {
                 </div>
                 <Button
                   className="detail-primary-button"
-                  component="a"
-                  href={`https://t.me/${validTelegramUsername}`}
-                  rel="noreferrer"
-                  target="_blank"
+                  onClick={() => {
+                    router.push(
+                      `/messages?userId=${encodeURIComponent(itemOwnerId)}&itemId=${encodeURIComponent(item.id)}`,
+                    );
+                  }}
                   variant="contained"
                 >
-                  {t("detail.messageTelegram")} <span aria-hidden="true">↗</span>
+                  {t("detail.openChat")} <span aria-hidden="true">↗</span>
                 </Button>
               </div>
-            ) : (
+            ) : !isOwnItem ? (
               <div className="detail-contact">
                 <div>
-                  <h2>Связаться с автором</h2>
-                  <p>
-                    {item.telegram
-                      ? "Telegram-ник указан в неверном формате."
-                      : "Автор не указал Telegram для связи."}
-                  </p>
+                  <h2>{t("detail.contact")}</h2>
+                  <p>{t("detail.chatUnavailable")}</p>
                 </div>
               </div>
-            )}
+            ) : null}
 
             {isOwnItem && (
               <div className="owner-actions">
@@ -574,21 +558,6 @@ export default function ItemDetail({ id }: { id: string }) {
                       value={editDetails}
                     />
                     <span className="item-edit-character-count">{editDetails.length}/1500</span>
-                  </label>
-                  <label className="form-group">
-                    <span className="form-label">Telegram <span>*</span></span>
-                    <div className="telegram-input">
-                      <span aria-hidden="true">@</span>
-                      <input
-                        autoComplete="username"
-                        maxLength={33}
-                        onChange={(event) => setEditTelegram(event.target.value)}
-                        placeholder="username"
-                        required
-                        value={editTelegram}
-                      />
-                    </div>
-                    <span className="item-edit-hint">Укажите имя пользователя без ссылки, например @student.</span>
                   </label>
                 </form>
               </DialogContent>

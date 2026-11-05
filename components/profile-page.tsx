@@ -51,7 +51,6 @@ export default function ProfilePage() {
   const [bio, setBio] = useState("");
   const [faculty, setFaculty] = useState("");
   const [course, setCourse] = useState("");
-  const [telegram, setTelegram] = useState("");
   const [avatarSelection, setAvatarSelection] = useState<{ file: File; previewUrl: string } | null>(null);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
@@ -84,7 +83,6 @@ export default function ProfilePage() {
       setBio(currentProfile.bio);
       setFaculty(currentProfile.faculty);
       setCourse(currentProfile.course?.toString() ?? "");
-      setTelegram(currentProfile.contact_telegram);
     }).catch((loadError: unknown) => {
       if (active) setError(loadError instanceof Error ? loadError.message : "Не удалось загрузить профиль.");
     }).finally(() => {
@@ -98,10 +96,9 @@ export default function ProfilePage() {
     fullName.trim(),
     bio.trim(),
     faculty.trim() || course,
-    telegram.trim(),
     avatarSelection || profile?.avatar_url,
   ].filter(Boolean).length;
-  const completion = Math.round((completedFields / 6) * 100);
+  const completion = Math.round((completedFields / 5) * 100);
   const publicProfilePath = isValidUsername(username.trim())
     ? `/u/${encodeURIComponent(username.trim())}`
     : "";
@@ -159,11 +156,10 @@ export default function ProfilePage() {
           bio: bio.trim(),
           faculty: faculty.trim(),
           course: course ? Number(course) : null,
-          contact_telegram: telegram.trim().replace(/^@/, ""),
           avatar_url: avatarUrl,
         })
         .eq("id", user.id)
-        .select("id,username,full_name,avatar_url,bio,faculty,course,contact_telegram,role,is_verified,is_blocked,created_at")
+        .select("id,username,full_name,avatar_url,bio,faculty,course,role,is_verified,is_blocked,created_at")
         .single();
       if (updateError) throw new Error(`Не удалось сохранить профиль: ${updateError.message}`);
       setProfile(data as Profile);
@@ -435,15 +431,6 @@ export default function ProfilePage() {
                               />
                             </label>
                           </div>
-                          <label className="form-group">
-                            <span className="form-label">Telegram</span>
-                            <input
-                              maxLength={32}
-                              onChange={(event) => setTelegram(event.target.value)}
-                              placeholder="@username"
-                              value={telegram}
-                            />
-                          </label>
                           <Button disabled={saving} type="submit" variant="contained">
                             {saving ? "Сохраняем…" : "Сохранить профиль"}
                           </Button>

@@ -7,7 +7,7 @@ import HeaderAccount from "@/components/header-account";
 import ThemeToggle from "@/components/theme-toggle";
 
 type SiteHeaderProps = {
-  active?: "feed" | "add" | "item" | "about" | "favorites" | "none";
+  active?: "feed" | "add" | "item" | "about" | "favorites" | "messages" | "none";
 };
 
 export default function SiteHeader({ active = "none" }: SiteHeaderProps) {
@@ -75,6 +75,7 @@ export default function SiteHeader({ active = "none" }: SiteHeaderProps) {
         <Link href="/#feed" aria-label="Поиск"><span aria-hidden="true">⌕</span><small>Поиск</small></Link>
         <Link href="/add" aria-current={active === "add" ? "page" : undefined} aria-label="Добавить"><span aria-hidden="true">＋</span><small>Добавить</small></Link>
         <Link href="/about" aria-current={active === "about" ? "page" : undefined} aria-label="О проекте"><span aria-hidden="true">ⓘ</span><small>О проекте</small></Link>
+        <Link href="/messages" aria-current={active === "messages" ? "page" : undefined} aria-label={t("nav.messages")}><span aria-hidden="true">✉</span><small>{t("nav.messages")}</small></Link>
         <Link href="/profile" aria-label="Профиль"><span aria-hidden="true">◉</span><small>Профиль</small></Link>
       </nav>
     </header>

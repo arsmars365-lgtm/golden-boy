@@ -69,7 +69,6 @@ export default function AddItemPage() {
   const [details, setDetails] = useState("");
   const [place, setPlace] = useState("");
   const [date, setDate] = useState("");
-  const [telegram, setTelegram] = useState("");
   const [imageDataUrls, setImageDataUrls] = useState<string[]>([]);
   const [imageNames, setImageNames] = useState<string[]>([]);
   const [error, setError] = useState("");
@@ -127,12 +126,6 @@ export default function AddItemPage() {
     }
     const selectedDate = date || today;
 
-    const normalizedTelegram = telegram.trim().replace(/^@/, "");
-    if (!/^[A-Za-z0-9_]{5,32}$/.test(normalizedTelegram)) {
-      setError(t("form.error.telegram"));
-      return;
-    }
-
     if (!selectedDate) {
       setError(t("form.error.date"));
       return;
@@ -157,7 +150,6 @@ export default function AddItemPage() {
         art,
         symbol,
         details: details.trim(),
-        telegram: normalizedTelegram,
         ownerId: user.id,
         ...(imageDataUrls.length ? { imageDataUrls } : {}),
       });
@@ -388,29 +380,6 @@ export default function AddItemPage() {
                 </span>
               )}
             </div>
-
-            <div className="form-divider" />
-
-            <label className="form-group">
-              <span className="form-label">
-                {t("form.telegram")} <span>*</span>
-              </span>
-              <div className="telegram-input">
-                <span aria-hidden="true">@</span>
-                <input
-                  autoComplete="off"
-                  maxLength={33}
-                  onChange={(event) => setTelegram(event.target.value)}
-                  pattern="@?[A-Za-z0-9_]{5,32}"
-                  placeholder="username"
-                  required
-                  value={telegram}
-                />
-              </div>
-              <span className="field-hint">
-                {t("form.telegramHint")}
-              </span>
-            </label>
 
             <div className="form-submit-row">
               <Link className="cancel-link" href="/">
