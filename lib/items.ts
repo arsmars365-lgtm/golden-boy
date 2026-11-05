@@ -19,6 +19,7 @@ export type Item = {
   details: string;
   imageDataUrl?: string;
   imageDataUrls?: string[];
+  price?: number | null;
   ownerId?: string;
   ownerUsername?: string;
   ownerFullName?: string;
@@ -140,6 +141,7 @@ type ItemRow = {
   location: string;
   date: string;
   photos: string[];
+  price: number | null;
   status: "active" | "returned" | "hidden";
   description: string;
   created_at: string;
@@ -178,6 +180,7 @@ function fromItemRow(row: ItemRow): Item {
     ...(row.photos[0]
       ? { imageDataUrl: row.photos[0], imageDataUrls: row.photos }
       : {}),
+    price: row.price,
     ownerId: row.user_id,
     ownerUsername: row.profiles?.username,
     ownerFullName: row.profiles?.full_name,
@@ -186,7 +189,20 @@ function fromItemRow(row: ItemRow): Item {
 }
 
 const itemSelection =
-  "id,user_id,title,category,type,location,date,photos,status,description,created_at,profiles!items_user_profile_fkey(username,full_name,is_verified)";
+  "id,user_id,title,category,type,location,date,photos,price,status,description,created_at,profiles!items_user_profile_fkey(username,full_name,is_verified)";
+
+function normalizePrice(price: number | null | undefined): number | null {
+  if (price === null || price === undefined) return null;
+  if (
+    !Number.isFinite(price) ||
+    price < 0 ||
+    price > 9_999_999_999.99 ||
+    Number(price.toFixed(2)) !== price
+  ) {
+    throw new Error("Цена должна быть неотрицательной и содержать не более двух знаков после запятой.");
+  }
+  return price;
+}
 
 export async function getStoredItems(): Promise<Item[]> {
   const { data, error } = await getSupabaseClient()
@@ -238,6 +254,7 @@ export async function saveItem(item: Item): Promise<void> {
     status: item.status === "returned" ? "returned" : "active",
     description: item.details,
     photos,
+    price: normalizePrice(item.price),
     user_id: item.ownerId,
     });
 
@@ -261,9 +278,9 @@ export async function saveItem(item: Item): Promise<void> {
 export async function updateStoredItem(
   id: string,
   ownerId: string,
-  updates: Partial<Pick<Item, "status" | "title" | "category" | "type" | "place" | "date" | "details">>,
+  updates: Partial<Pick<Item, "status" | "title" | "category" | "type" | "place" | "date" | "details" | "price">>,
 ): Promise<Item> {
-  const databaseUpdates: Record<string, string> = {};
+  const databaseUpdates: Record<string, string | number | null> = {};
   if (updates.status) {
     databaseUpdates.status = updates.status === "returned" ? "returned" : "active";
   }
@@ -273,6 +290,7 @@ export async function updateStoredItem(
   if (updates.place !== undefined) databaseUpdates.location = updates.place.trim();
   if (updates.date !== undefined) databaseUpdates.date = updates.date;
   if (updates.details !== undefined) databaseUpdates.description = updates.details.trim();
+  if (updates.price !== undefined) databaseUpdates.price = normalizePrice(updates.price);
   const { data, error } = await getSupabaseClient()
     .from("items")
     .update(databaseUpdates)

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import type { ReactNode } from "react";
 import { Geist, Geist_Mono } from "next/font/google";
 import { FavoritesProvider } from "@/components/favorites-provider";
 import { LanguageProvider } from "@/components/language-provider";
@@ -21,7 +22,7 @@ export const metadata: Metadata = {
     "Объявления о потерянных и найденных вещах в университетском сообществе.",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html
       lang="ru"

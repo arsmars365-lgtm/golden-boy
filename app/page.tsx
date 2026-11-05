@@ -585,14 +585,13 @@ export default function Home() {
             </p>
           </div>
           <div className="hero-note">
-            <span className="note-icon">✳</span>
+            <span className="note-icon" aria-hidden="true">✳</span>
             <span>
               <strong>{t.hero.note}</strong>
               <br />
               {t.hero.noteStrong}
             </span>
           </div>
-
           <form className="search-panel" onSubmit={(event) => event.preventDefault()}>
             <label className="search-field">
               <Magnifier />

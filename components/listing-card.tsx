@@ -108,13 +108,20 @@ export default function ListingCard({
         </div>
       </Link>
       <button
-        className="favorite-toggle"
+        aria-label={isFavorite ? `Убрать из избранного: ${title}` : `Добавить в избранное: ${title}`}
+        className={`favorite-toggle ${isFavorite ? "is-favorite" : ""}`}
         type="button"
         aria-pressed={isFavorite}
         disabled={!favoritesReady}
-        onClick={() => onToggleFavorite(item.id)}
+        onClick={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          onToggleFavorite(item.id);
+        }}
       >
-        {isFavorite ? labels.inFavorites : labels.addFavorite}
+        <svg aria-hidden="true" viewBox="0 0 24 24" fill={isFavorite ? "currentColor" : "none"}>
+          <path d="M12 20.7 4.9 13.9a4.7 4.7 0 0 1 6.7-6.6L12 7.6l.4-.3a4.7 4.7 0 1 1 6.7 6.6L12 20.7Z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
       </button>
     </article>
   );

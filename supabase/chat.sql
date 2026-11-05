@@ -6,6 +6,8 @@ create table if not exists public.conversations (
   item_id uuid references public.items(id) on delete set null,
   last_message_preview text not null default ''
     check (char_length(last_message_preview) <= 240),
+  participant_1_last_read_at timestamptz not null default now(),
+  participant_2_last_read_at timestamptz not null default now(),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint conversations_distinct_participants_check check (participant_1 < participant_2),
@@ -20,12 +22,32 @@ create table if not exists public.messages (
   created_at timestamptz not null default now()
 );
 
+alter table public.conversations
+  add column if not exists participant_1_last_read_at timestamptz not null default now(),
+  add column if not exists participant_2_last_read_at timestamptz not null default now();
+alter table public.items add column if not exists price numeric(12,2);
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = 'public.items'::regclass
+      and conname = 'items_price_nonnegative_check'
+  ) then
+    alter table public.items add constraint items_price_nonnegative_check
+      check (price is null or price >= 0);
+  end if;
+end
+$$;
+
 create index if not exists conversations_participant_1_updated_at_idx
   on public.conversations (participant_1, updated_at desc);
 create index if not exists conversations_participant_2_updated_at_idx
   on public.conversations (participant_2, updated_at desc);
 create index if not exists messages_conversation_created_at_idx
   on public.messages (conversation_id, created_at);
+create index if not exists messages_unread_by_conversation_idx
+  on public.messages (conversation_id, sender_id, created_at);
 
 alter table public.conversations enable row level security;
 alter table public.messages enable row level security;
@@ -86,8 +108,11 @@ create policy "Active participants send messages"
     )
   );
 
+revoke all on public.conversations from public, anon, authenticated;
+revoke all on public.messages from public, anon, authenticated;
 grant select on public.conversations to authenticated;
-grant select, insert on public.messages to authenticated;
+grant select on public.messages to authenticated;
+grant insert (conversation_id, sender_id, body) on public.messages to authenticated;
 
 revoke select on public.profiles from anon, authenticated;
 revoke select (contact_telegram) on public.profiles from anon, authenticated;
@@ -100,13 +125,13 @@ grant update (username, full_name, avatar_url, bio, faculty, course, role, is_ve
 
 revoke select on public.items from anon, authenticated;
 revoke select (contact_method) on public.items from anon, authenticated;
-grant select (id, user_id, type, title, description, category, location, date, photos, status, created_at, updated_at)
+grant select (id, user_id, type, title, description, category, location, date, photos, price, status, created_at, updated_at)
   on public.items to anon, authenticated;
 revoke insert, update on public.items from authenticated;
 revoke insert (contact_method), update (contact_method) on public.items from authenticated;
-grant insert (id, user_id, type, title, description, category, location, date, photos, status)
+grant insert (id, user_id, type, title, description, category, location, date, photos, price, status)
   on public.items to authenticated;
-grant update (title, description, category, location, date, photos, status)
+grant update (title, description, category, location, date, photos, price, status)
   on public.items to authenticated;
 grant delete on public.items to authenticated;
 
@@ -165,7 +190,7 @@ begin
   )
   values (first_participant, second_participant, p_item_id)
   on conflict (participant_1, participant_2)
-  do update set item_id = coalesce(existing.item_id, excluded.item_id)
+  do update set item_id = coalesce(excluded.item_id, existing.item_id)
   returning id into conversation_id;
 
   return conversation_id;
@@ -175,6 +200,94 @@ $$;
 revoke all on function public.create_or_get_conversation(uuid, uuid)
   from public, anon, authenticated;
 grant execute on function public.create_or_get_conversation(uuid, uuid)
+  to authenticated;
+
+create or replace function public.mark_conversation_read(p_conversation_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  current_user_id uuid := auth.uid();
+  affected_rows integer;
+begin
+  if current_user_id is null or not public.is_active_user() then
+    raise exception 'An active account is required to read messages'
+      using errcode = '42501';
+  end if;
+
+  update public.conversations c
+  set participant_1_last_read_at = case
+        when c.participant_1 = current_user_id
+          then greatest(c.participant_1_last_read_at, statement_timestamp())
+        else c.participant_1_last_read_at
+      end,
+      participant_2_last_read_at = case
+        when c.participant_2 = current_user_id
+          then greatest(c.participant_2_last_read_at, statement_timestamp())
+        else c.participant_2_last_read_at
+      end
+  where c.id = p_conversation_id
+    and current_user_id in (c.participant_1, c.participant_2)
+    and exists (
+      select 1
+      from public.profiles other_profile
+      where other_profile.id = case
+        when c.participant_1 = current_user_id then c.participant_2
+        else c.participant_1
+      end
+        and not other_profile.is_blocked
+    );
+
+  get diagnostics affected_rows = row_count;
+  if affected_rows = 0 then
+    raise exception 'Conversation not found or unavailable'
+      using errcode = '42501';
+  end if;
+end;
+$$;
+
+revoke all on function public.mark_conversation_read(uuid)
+  from public, anon, authenticated;
+grant execute on function public.mark_conversation_read(uuid)
+  to authenticated;
+
+create or replace function public.get_unread_chat_counts()
+returns table (conversation_id uuid, unread_count bigint)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select c.id, count(m.id)::bigint
+  from public.conversations c
+  join public.messages m on m.conversation_id = c.id
+  where public.is_active_user()
+    and (
+      (c.participant_1 = (select auth.uid())
+        and m.sender_id <> (select auth.uid())
+        and m.created_at > c.participant_1_last_read_at)
+      or
+      (c.participant_2 = (select auth.uid())
+        and m.sender_id <> (select auth.uid())
+        and m.created_at > c.participant_2_last_read_at)
+    )
+    and exists (
+      select 1
+      from public.profiles other_profile
+      where other_profile.id = case
+        when c.participant_1 = (select auth.uid()) then c.participant_2
+        else c.participant_1
+      end
+        and not other_profile.is_blocked
+    )
+  group by c.id;
+$$;
+
+revoke all on function public.get_unread_chat_counts()
+  from public, anon, authenticated;
+grant execute on function public.get_unread_chat_counts()
   to authenticated;
 
 create or replace function public.update_conversation_after_message()

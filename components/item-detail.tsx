@@ -3,6 +3,11 @@
 import { useState, type FormEvent } from "react";
 import Alert from "@mui/material/Alert";
 import Button from "@mui/material/Button";
+import Dialog from "@mui/material/Dialog";
+import DialogActions from "@mui/material/DialogActions";
+import DialogContent from "@mui/material/DialogContent";
+import DialogTitle from "@mui/material/DialogTitle";
+import IconButton from "@mui/material/IconButton";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import SiteFooter from "@/components/site-footer";
@@ -58,12 +63,14 @@ export default function ItemDetail({ id }: { id: string }) {
   const [reportReason, setReportReason] = useState("");
   const [reportMessage, setReportMessage] = useState("");
   const [isEditing, setIsEditing] = useState(false);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [editTitle, setEditTitle] = useState("");
   const [editCategory, setEditCategory] = useState("");
   const [editType, setEditType] = useState<"lost" | "found">("lost");
   const [editPlace, setEditPlace] = useState("");
   const [editDate, setEditDate] = useState("");
   const [editDetails, setEditDetails] = useState("");
+  const [editPrice, setEditPrice] = useState("");
   const [editTelegram, setEditTelegram] = useState("");
   const item =
     storedItems.find((storedItem) => storedItem.id === id) ??
@@ -80,6 +87,7 @@ export default function ItemDetail({ id }: { id: string }) {
     found: t("status.found"),
     returned: t("status.returned"),
   };
+  const locale = language === "kk" ? "kk-KZ" : language === "en" ? "en-US" : "ru-RU";
   const reportReasons = [
     t("detail.reportRule"),
     t("detail.reportSpam"),
@@ -109,7 +117,8 @@ export default function ItemDetail({ id }: { id: string }) {
     setEditPlace(item.place);
     setEditDate(item.date ?? "");
     setEditDetails(item.details);
-    setEditTelegram(item.telegram ?? "");
+    setEditPrice(item.price == null ? "" : String(item.price));
+    setEditTelegram("");
     setActionError("");
     setIsEditing(true);
   }
@@ -117,11 +126,19 @@ export default function ItemDetail({ id }: { id: string }) {
   async function handleEditSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setActionError("");
+
+    if (!editTitle.trim() || !editCategory || !editPlace.trim() || !editDate || !editDetails.trim()) {
+      setActionError("Заполните все обязательные поля.");
+      return;
+    }
+
     const telegramUsername = editTelegram.trim().replace(/^@/, "");
-    if (!/^[A-Za-z0-9_]{5,32}$/.test(telegramUsername)) {
+    if (telegramUsername && !/^[A-Za-z0-9_]{5,32}$/.test(telegramUsername)) {
       setActionError(t("form.error.telegram"));
       return;
     }
+
+    setIsSavingEdit(true);
     try {
       if (!user) throw new Error("Войди в аккаунт.");
       await updateStoredItem(id, user.id, {
@@ -131,11 +148,13 @@ export default function ItemDetail({ id }: { id: string }) {
         place: editPlace,
         date: editDate,
         details: editDetails,
-        telegram: telegramUsername,
+        price: editPrice.trim() ? Number(editPrice) : null,
       });
       setIsEditing(false);
     } catch (editError) {
       setActionError(editError instanceof Error ? editError.message : "Не удалось изменить объявление.");
+    } finally {
+      setIsSavingEdit(false);
     }
   }
 
@@ -289,6 +308,18 @@ export default function ItemDetail({ id }: { id: string }) {
                 ? t(categoryTranslationKey(item.category)!)
                 : item.category}
             </span>
+            {item.price != null && (
+              <p className="detail-price">
+                <span>{t("detail.price")}</span>
+                <strong>
+                  {new Intl.NumberFormat(locale, {
+                    style: "currency",
+                    currency: "KZT",
+                    maximumFractionDigits: 2,
+                  }).format(item.price)}
+                </strong>
+              </p>
+            )}
             <div className="detail-quick-actions">
               <Button
                 aria-pressed={favoriteIds.includes(item.id)}
@@ -426,18 +457,37 @@ export default function ItemDetail({ id }: { id: string }) {
                 <Button onClick={isEditing ? () => setIsEditing(false) : beginEditing} variant="outlined">
                   {isEditing ? "Отменить редактирование" : "Редактировать объявление"}
                 </Button>
-                {isEditing && (
-                  <form className="item-edit-form" onSubmit={handleEditSubmit}>
-                    <label className="form-group"><span className="form-label">Название</span><input maxLength={80} onChange={(event) => setEditTitle(event.target.value)} required value={editTitle} /></label>
-                    <label className="form-group"><span className="form-label">Тип объявления</span><select onChange={(event) => { if (event.target.value === "lost" || event.target.value === "found") setEditType(event.target.value); }} value={editType}><option value="lost">Потерял</option><option value="found">Нашёл</option></select></label>
-                    <label className="form-group"><span className="form-label">Категория</span><select onChange={(event) => setEditCategory(event.target.value)} required value={editCategory}>{ITEM_CATEGORIES.map((category) => <option key={category} value={category}>{category}</option>)}</select></label>
-                    <label className="form-group"><span className="form-label">Место</span><input maxLength={120} onChange={(event) => setEditPlace(event.target.value)} required value={editPlace} /></label>
-                    <label className="form-group"><span className="form-label">Дата</span><input onChange={(event) => setEditDate(event.target.value)} required type="date" value={editDate} /></label>
-                    <label className="form-group"><span className="form-label">Описание</span><textarea maxLength={1500} onChange={(event) => setEditDetails(event.target.value)} rows={4} value={editDetails} /></label>
-                    <label className="form-group"><span className="form-label">Telegram</span><input maxLength={33} onChange={(event) => setEditTelegram(event.target.value)} required value={editTelegram} /></label>
-                    <Button type="submit" variant="contained">Сохранить</Button>
-                  </form>
-                )}
+                <Dialog
+                  fullWidth
+                  maxWidth="sm"
+                  onClose={() => setIsEditing(false)}
+                  open={isEditing}
+                >
+                  <DialogTitle sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 }}>
+                    <span>Редактировать объявление</span>
+                    <IconButton aria-label="Закрыть" onClick={() => setIsEditing(false)} size="small">
+                      ×
+                    </IconButton>
+                  </DialogTitle>
+                  <DialogContent>
+                    <form className="item-edit-form" id="edit-item-form" onSubmit={handleEditSubmit}>
+                      <label className="form-group"><span className="form-label">Название</span><input maxLength={80} onChange={(event) => setEditTitle(event.target.value)} required value={editTitle} /></label>
+                      <label className="form-group"><span className="form-label">Тип объявления</span><select onChange={(event) => { if (event.target.value === "lost" || event.target.value === "found") setEditType(event.target.value); }} value={editType}><option value="lost">Потерял</option><option value="found">Нашёл</option></select></label>
+                      <label className="form-group"><span className="form-label">Категория</span><select onChange={(event) => setEditCategory(event.target.value)} required value={editCategory}>{ITEM_CATEGORIES.map((category) => <option key={category} value={category}>{category}</option>)}</select></label>
+                      <label className="form-group"><span className="form-label">Место</span><input maxLength={120} onChange={(event) => setEditPlace(event.target.value)} required value={editPlace} /></label>
+                      <label className="form-group"><span className="form-label">Дата</span><input onChange={(event) => setEditDate(event.target.value)} required type="date" value={editDate} /></label>
+                      <label className="form-group"><span className="form-label">{t("form.price")}</span><input max={9_999_999_999.99} min={0} onChange={(event) => setEditPrice(event.target.value)} step="0.01" type="number" value={editPrice} /></label>
+                      <label className="form-group"><span className="form-label">Описание</span><textarea maxLength={1500} onChange={(event) => setEditDetails(event.target.value)} rows={4} value={editDetails} /></label>
+                      <label className="form-group"><span className="form-label">Telegram</span><input maxLength={33} onChange={(event) => setEditTelegram(event.target.value)} required value={editTelegram} /></label>
+                    </form>
+                  </DialogContent>
+                  <DialogActions sx={{ padding: "0 24px 20px" }}>
+                    <Button onClick={() => setIsEditing(false)} variant="outlined">Отмена</Button>
+                    <Button disabled={isSavingEdit} form="edit-item-form" type="submit" variant="contained">
+                      {isSavingEdit ? "Сохраняем…" : "Сохранить изменения"}
+                    </Button>
+                  </DialogActions>
+                </Dialog>
                 <label htmlFor="item-status">{t("detail.status")}</label>
                 <select
                   id="item-status"

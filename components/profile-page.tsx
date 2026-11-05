@@ -3,6 +3,10 @@
 import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from "react";
 import Alert from "@mui/material/Alert";
 import Button from "@mui/material/Button";
+import Dialog from "@mui/material/Dialog";
+import DialogActions from "@mui/material/DialogActions";
+import DialogContent from "@mui/material/DialogContent";
+import DialogTitle from "@mui/material/DialogTitle";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import SiteFooter from "@/components/site-footer";
@@ -12,7 +16,7 @@ import { getCurrentProfile, isValidUsername, type Profile } from "@/lib/profiles
 import { useDemoAuth } from "@/lib/use-demo-auth";
 import { getSupabaseClient } from "@/lib/supabase";
 import { useStoredItems } from "@/lib/use-stored-items";
-import { getAllItems, type Item } from "@/lib/items";
+import { deleteStoredItem, getAllItems, updateStoredItem, type Item } from "@/lib/items";
 import { getLostItemProgress, getSimilarFoundItems } from "@/lib/item-matching";
 import { useFavoriteItems } from "@/lib/use-favorite-items";
 import { useItemNotifications } from "@/lib/use-item-notifications";
@@ -55,6 +59,18 @@ export default function ProfilePage() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
+  const [editingItem, setEditingItem] = useState<Item | null>(null);
+  const [editingItemForm, setEditingItemForm] = useState({
+    title: "",
+    category: "",
+    type: "lost" as "lost" | "found",
+    place: "",
+    date: "",
+    details: "",
+    price: "",
+  });
+  const [isSavingItemEdit, setIsSavingItemEdit] = useState(false);
 
   const requestedTab = searchParams.get("tab");
   const activeTab: ProfileTab =
@@ -172,6 +188,26 @@ export default function ProfilePage() {
     }
   }
 
+  async function handleSignOut() {
+    if (!user || signingOut) return;
+    const confirmed = window.confirm("Вы уверены, что хотите выйти?");
+    if (!confirmed) return;
+
+    setError("");
+    setMessage("");
+    setSigningOut(true);
+    try {
+      const { error: signOutError } = await getSupabaseClient().auth.signOut();
+      if (signOutError) {
+        throw new Error(signOutError.message);
+      }
+      router.push("/");
+    } catch (signOutError) {
+      setError(signOutError instanceof Error ? signOutError.message : "Не удалось выйти из аккаунта.");
+      setSigningOut(false);
+    }
+  }
+
   const allItems = useMemo(() => getAllItems(storedItems), [storedItems]);
   const ownItems = useMemo(
     () => storedItems.filter((item) => item.ownerId === user?.id),
@@ -181,7 +217,67 @@ export default function ProfilePage() {
     () => allItems.filter((item) => favoriteIds.includes(item.id)),
     [allItems, favoriteIds],
   );
-  function renderItemRow(item: Item, saved = false) {
+
+  function openEditItem(item: Item) {
+    setError("");
+    setMessage("");
+    setEditingItem(item);
+    setEditingItemForm({
+      title: item.title,
+      category: item.category,
+      type: item.type,
+      place: item.place,
+      date: item.date ?? "",
+      details: item.details,
+      price: item.price == null ? "" : String(item.price),
+    });
+  }
+
+  async function saveEditedItem(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!user || !editingItem) return;
+
+    if (!editingItemForm.title.trim() || !editingItemForm.category || !editingItemForm.place.trim() || !editingItemForm.date || !editingItemForm.details.trim()) {
+      setError("Заполните все обязательные поля.");
+      return;
+    }
+
+    setIsSavingItemEdit(true);
+    try {
+      await updateStoredItem(editingItem.id, user.id, {
+        title: editingItemForm.title,
+        category: editingItemForm.category,
+        type: editingItemForm.type,
+        place: editingItemForm.place,
+        date: editingItemForm.date,
+        details: editingItemForm.details,
+        price: editingItemForm.price.trim() ? Number(editingItemForm.price) : null,
+      });
+      setMessage("Объявление обновлено.");
+      setEditingItem(null);
+    } catch (itemEditError) {
+      setError(itemEditError instanceof Error ? itemEditError.message : "Не удалось обновить объявление.");
+    } finally {
+      setIsSavingItemEdit(false);
+    }
+  }
+
+  async function deleteOwnItem(item: Item) {
+    if (!user) return;
+    const confirmed = window.confirm(`Удалить объявление «${item.title}»? Это действие нельзя отменить.`);
+    if (!confirmed) return;
+
+    setError("");
+    setMessage("");
+    try {
+      await deleteStoredItem(item.id, user.id);
+      setMessage("Объявление удалено.");
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : "Не удалось удалить объявление.");
+    }
+  }
+
+  function renderItemRow(item: Item, saved = false, includeActions = false) {
     const matches = item.type === "lost" ? getSimilarFoundItems(item, storedItems) : [];
     const progress = item.type === "lost" ? getLostItemProgress(item, matches.length > 0) : 0;
     return (
@@ -204,7 +300,16 @@ export default function ProfilePage() {
             )}
           </span>
         </Link>
-        {saved && (
+        {includeActions ? (
+          <div className="account-listing-actions">
+            <button className="account-listing-action account-listing-action-edit" onClick={() => openEditItem(item)} type="button">
+              Редактировать
+            </button>
+            <button className="account-listing-action account-listing-action-delete" onClick={() => void deleteOwnItem(item)} type="button">
+              Удалить
+            </button>
+          </div>
+        ) : saved ? (
           <button
             aria-label={`Убрать «${item.title}» из избранного`}
             className="favorite-remove-button"
@@ -213,7 +318,7 @@ export default function ProfilePage() {
           >
             ♥
           </button>
-        )}
+        ) : null}
       </article>
     );
   }
@@ -249,6 +354,17 @@ export default function ProfilePage() {
                   <article><strong>{favoriteIds.length}</strong><span>в избранном</span></article>
                   <article><strong>{notifications.length}</strong><span>похожих находок</span></article>
                 </div>
+                <div className="profile-signout-row">
+                  <Button
+                    className="profile-signout-button"
+                    color="error"
+                    disabled={signingOut}
+                    onClick={handleSignOut}
+                    variant="outlined"
+                  >
+                    {signingOut ? "Выходим…" : "Выйти"}
+                  </Button>
+                </div>
                 <div className="account-tabs" role="tablist" aria-label="Разделы профиля">
                   {profileTabs.map((tab) => (
                     <button
@@ -271,7 +387,7 @@ export default function ProfilePage() {
                     {activeTab === "listings" && (
                       <>
                         <div className="account-section-heading"><div><span className="section-kicker">ВАШИ ПУБЛИКАЦИИ</span><h2>Мои объявления</h2></div><Button href="/add" variant="contained">＋ Добавить</Button></div>
-                        {ownItems.length ? <div className="account-list">{ownItems.map((item) => renderItemRow(item))}</div> : <div className="account-empty"><span aria-hidden="true">⌕</span><h3>Объявлений пока нет</h3><p>Опубликуйте потерянную или найденную вещь — здесь появится её статус и прогресс.</p><Button href="/add" variant="contained">Создать объявление</Button></div>}
+                        {ownItems.length ? <div className="account-list">{ownItems.map((item) => renderItemRow(item, false, true))}</div> : <div className="account-empty"><span aria-hidden="true">⌕</span><h3>Объявлений пока нет</h3><p>Опубликуйте потерянную или найденную вещь — здесь появится её статус и прогресс.</p><Button href="/add" variant="contained">Создать объявление</Button></div>}
                       </>
                     )}
                     {activeTab === "favorites" && (
@@ -441,6 +557,30 @@ export default function ProfilePage() {
                       </>
                     )}
                   </section>
+                )}
+                {editingItem && (
+                  <Dialog fullWidth maxWidth="sm" onClose={() => setEditingItem(null)} open={Boolean(editingItem)}>
+                    <DialogTitle sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 }}>
+                      <span>Редактировать объявление</span>
+                    </DialogTitle>
+                    <DialogContent>
+                      <form className="item-edit-form" id="profile-edit-item-form" onSubmit={saveEditedItem}>
+                        <label className="form-group"><span className="form-label">Название</span><input maxLength={80} onChange={(event) => setEditingItemForm((current) => ({ ...current, title: event.target.value }))} required value={editingItemForm.title} /></label>
+                        <label className="form-group"><span className="form-label">Тип объявления</span><select onChange={(event) => setEditingItemForm((current) => ({ ...current, type: event.target.value === "found" ? "found" : "lost" }))} value={editingItemForm.type}><option value="lost">Потерял</option><option value="found">Нашёл</option></select></label>
+                        <label className="form-group"><span className="form-label">Категория</span><select onChange={(event) => setEditingItemForm((current) => ({ ...current, category: event.target.value }))} required value={editingItemForm.category}>{["Документы", "Телефон", "Ключи", "Наушники", "Одежда", "Сумки", "Другое", "Электроника", "Книги"].map((category) => <option key={category} value={category}>{category}</option>)}</select></label>
+                        <label className="form-group"><span className="form-label">Место</span><input maxLength={120} onChange={(event) => setEditingItemForm((current) => ({ ...current, place: event.target.value }))} required value={editingItemForm.place} /></label>
+                        <label className="form-group"><span className="form-label">Дата</span><input onChange={(event) => setEditingItemForm((current) => ({ ...current, date: event.target.value }))} required type="date" value={editingItemForm.date} /></label>
+                        <label className="form-group"><span className="form-label">Цена, ₸ (необязательно)</span><input max={9_999_999_999.99} min={0} onChange={(event) => setEditingItemForm((current) => ({ ...current, price: event.target.value }))} step="0.01" type="number" value={editingItemForm.price} /></label>
+                        <label className="form-group"><span className="form-label">Описание</span><textarea maxLength={1500} onChange={(event) => setEditingItemForm((current) => ({ ...current, details: event.target.value }))} rows={4} value={editingItemForm.details} /></label>
+                      </form>
+                    </DialogContent>
+                    <DialogActions sx={{ padding: "0 24px 20px" }}>
+                      <Button onClick={() => setEditingItem(null)} variant="outlined">Отмена</Button>
+                      <Button disabled={isSavingItemEdit} form="profile-edit-item-form" type="submit" variant="contained">
+                        {isSavingItemEdit ? "Сохраняем…" : "Сохранить изменения"}
+                      </Button>
+                    </DialogActions>
+                  </Dialog>
                 )}
               </>
             ) : <Alert severity="error">Профиль не найден. Попробуйте выйти и войти снова.</Alert>}

@@ -9,6 +9,13 @@ export type ChatProfile = {
   avatar_url: string | null;
 };
 
+export type ChatListingPreview = {
+  id: string;
+  title: string;
+  photo: string | null;
+  price: number | null;
+};
+
 export type ChatConversation = {
   id: string;
   participant_1: string;
@@ -17,6 +24,8 @@ export type ChatConversation = {
   last_message_preview: string;
   updated_at: string;
   other_profile: ChatProfile;
+  item: ChatListingPreview | null;
+  unread_count: number;
 };
 
 export type ChatMessage = {
@@ -27,7 +36,15 @@ export type ChatMessage = {
   created_at: string;
 };
 
-type ConversationRow = Omit<ChatConversation, "other_profile">;
+type ConversationRow = Omit<
+  ChatConversation,
+  "other_profile" | "item" | "unread_count"
+>;
+
+type UnreadCountRow = {
+  conversation_id: string;
+  unread_count: number | string;
+};
 
 export async function getConversations(userId: string): Promise<ChatConversation[]> {
   const supabase = getSupabaseClient();
@@ -45,17 +62,57 @@ export async function getConversations(userId: string): Promise<ChatConversation
   const otherIds = rows.map((row) =>
     row.participant_1 === userId ? row.participant_2 : row.participant_1,
   );
-  const { data: profiles, error: profilesError } = await supabase
-    .from("profiles")
-    .select("id,username,full_name,avatar_url")
-    .in("id", otherIds);
+  const itemIds = [...new Set(rows.flatMap((row) => row.item_id ? [row.item_id] : []))];
+  const [profilesResult, unreadResult] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select("id,username,full_name,avatar_url")
+      .in("id", otherIds),
+    supabase.rpc("get_unread_chat_counts"),
+  ]);
+  const { data: profiles, error: profilesError } = profilesResult;
 
   if (profilesError) {
     throw new Error(`Не удалось загрузить участников чатов: ${profilesError.message}`);
   }
+  if (unreadResult.error) {
+    throw new Error(`Не удалось загрузить непрочитанные сообщения: ${unreadResult.error.message}`);
+  }
+
+  const { data: listings, error: listingsError } = itemIds.length
+    ? await supabase
+        .from("items")
+        .select("id,title,photos,price")
+        .in("id", itemIds)
+    : { data: [], error: null };
+  if (listingsError) {
+    throw new Error(`Не удалось загрузить объявления чатов: ${listingsError.message}`);
+  }
 
   const profilesById = new Map(
     ((profiles ?? []) as ChatProfile[]).map((profile) => [profile.id, profile]),
+  );
+  const listingsById = new Map(
+    ((listings ?? []) as Array<{
+      id: string;
+      title: string;
+      photos: string[];
+      price: number | string | null;
+    }>).map((listing) => [
+      listing.id,
+      {
+        id: listing.id,
+        title: listing.title,
+        photo: listing.photos[0] ?? null,
+        price: listing.price == null ? null : Number(listing.price),
+      } satisfies ChatListingPreview,
+    ]),
+  );
+  const unreadByConversationId = new Map(
+    ((unreadResult.data ?? []) as UnreadCountRow[]).map((row) => [
+      row.conversation_id,
+      Number(row.unread_count),
+    ]),
   );
 
   return rows.map((row) => {
@@ -65,8 +122,39 @@ export async function getConversations(userId: string): Promise<ChatConversation
     if (!otherProfile) {
       throw new Error("Не удалось найти профиль собеседника.");
     }
-    return { ...row, other_profile: otherProfile };
+    const listing = row.item_id ? listingsById.get(row.item_id) ?? null : null;
+    if (listing && listing.price !== null && !Number.isFinite(listing.price)) {
+      throw new Error("У объявления в чате указана некорректная цена.");
+    }
+    const unreadCount = unreadByConversationId.get(row.id) ?? 0;
+    if (!Number.isSafeInteger(unreadCount) || unreadCount < 0) {
+      throw new Error("Сервер вернул некорректное количество непрочитанных сообщений.");
+    }
+    return {
+      ...row,
+      other_profile: otherProfile,
+      item: listing,
+      unread_count: unreadCount,
+    };
   });
+}
+
+export async function getUnreadChatCount(): Promise<number> {
+  const { data, error } = await getSupabaseClient().rpc("get_unread_chat_counts");
+  if (error) {
+    throw new Error(`Не удалось загрузить непрочитанные сообщения: ${error.message}`);
+  }
+  return ((data ?? []) as UnreadCountRow[]).reduce((total, row) => {
+    const count = Number(row.unread_count);
+    if (!Number.isSafeInteger(count) || count < 0) {
+      throw new Error("Сервер вернул некорректное количество непрочитанных сообщений.");
+    }
+    const nextTotal = total + count;
+    if (!Number.isSafeInteger(nextTotal)) {
+      throw new Error("Слишком большое количество непрочитанных сообщений.");
+    }
+    return nextTotal;
+  }, 0);
 }
 
 export async function createOrGetConversation(
@@ -95,11 +183,18 @@ export async function getConversationMessages(
     .from("messages")
     .select("id,conversation_id,sender_id,body,created_at")
     .eq("conversation_id", conversationId)
-    .order("created_at", { ascending: true })
+    .order("created_at", { ascending: false })
     .limit(500);
 
   if (error) throw new Error(`Не удалось загрузить сообщения: ${error.message}`);
-  return (data ?? []) as ChatMessage[];
+  return ((data ?? []) as ChatMessage[]).reverse();
+}
+
+export async function markConversationRead(conversationId: string): Promise<void> {
+  const { error } = await getSupabaseClient().rpc("mark_conversation_read", {
+    p_conversation_id: conversationId,
+  });
+  if (error) throw new Error(`Не удалось отметить чат прочитанным: ${error.message}`);
 }
 
 export async function sendChatMessage(
@@ -125,10 +220,11 @@ export function subscribeToConversations(
   userId: string,
   onChange: () => void,
   onError: (message: string) => void,
+  onSubscribed?: () => void,
 ): () => void {
   const supabase = getSupabaseClient();
   const channel = supabase
-    .channel(`conversations:${userId}`)
+    .channel(`conversations:${userId}:${crypto.randomUUID()}`)
     .on(
       "postgres_changes",
       {
@@ -150,6 +246,7 @@ export function subscribeToConversations(
       onChange,
     )
     .subscribe((status, error) => {
+      if (status === "SUBSCRIBED") onSubscribed?.();
       if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
         onError(error?.message ?? "Не удалось подключиться к обновлениям списка чатов.");
       }
@@ -164,10 +261,11 @@ export function subscribeToConversation(
   conversationId: string,
   onMessage: () => void,
   onError: (message: string) => void,
+  onSubscribed?: () => void,
 ): () => void {
   const supabase = getSupabaseClient();
   const channel = supabase
-    .channel(`conversation:${conversationId}`)
+    .channel(`conversation:${conversationId}:${crypto.randomUUID()}`)
     .on(
       "postgres_changes",
       {
@@ -179,6 +277,7 @@ export function subscribeToConversation(
       onMessage,
     )
     .subscribe((status, error) => {
+      if (status === "SUBSCRIBED") onSubscribed?.();
       if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
         onError(error?.message ?? "Не удалось подключиться к обновлениям чата.");
       }

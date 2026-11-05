@@ -20,6 +20,7 @@ import {
   createOrGetConversation,
   getConversationMessages,
   getConversations,
+  markConversationRead,
   sendChatMessage,
   subscribeToConversations,
   subscribeToConversation,
@@ -120,6 +121,7 @@ export default function MessagesPage() {
       user.id,
       () => void loadConversations(),
       setPageError,
+      () => void loadConversations(),
     );
   }, [loadConversations, user]);
 
@@ -164,6 +166,8 @@ export default function MessagesPage() {
           setLoadedMessagesFor(conversationId);
           setConversationError("");
         }
+        await markConversationRead(conversationId);
+        if (active) await loadConversations();
       } catch (loadError) {
         if (active) {
           setLoadedMessagesFor(conversationId);
@@ -184,6 +188,7 @@ export default function MessagesPage() {
         void loadConversations();
       },
       setConversationError,
+      () => void refreshMessages(),
     );
 
     return () => {
@@ -244,6 +249,7 @@ export default function MessagesPage() {
       setDraft("");
       setMessages(await getConversationMessages(conversationId));
       setLoadedMessagesFor(conversationId);
+      await markConversationRead(conversationId);
       await loadConversations();
     } catch (sendError) {
       setConversationError(
@@ -322,6 +328,11 @@ export default function MessagesPage() {
                           <small>@{conversation.other_profile.username}</small>
                           <span>{conversation.last_message_preview || t("chat.noMessages")}</span>
                         </span>
+                        {conversation.unread_count > 0 && (
+                          <span className="chat-unread-badge" aria-label={`${conversation.unread_count} ${t("chat.unread")}`}>
+                            {conversation.unread_count > 99 ? "99+" : conversation.unread_count}
+                          </span>
+                        )}
                       </Link>
                     ))
                   ) : (
@@ -333,33 +344,60 @@ export default function MessagesPage() {
               <section className="messages-conversation" aria-label={t("chat.title")}>
                 {selectedConversation ? (
                   <>
-                    <header className="messages-conversation-header">
-                      <span className="messages-avatar">
-                        {selectedConversation.other_profile.avatar_url ? (
-                          <span
-                            role="img"
-                            aria-label={getDisplayName(selectedConversation.other_profile)}
-                            style={{ backgroundImage: `url("${selectedConversation.other_profile.avatar_url}")` }}
-                          />
-                        ) : (
-                          getDisplayName(selectedConversation.other_profile).slice(0, 1).toUpperCase()
-                        )}
-                      </span>
-                      <div>
-                        <Link href={`/u/${encodeURIComponent(selectedConversation.other_profile.username)}`}>
-                          <strong>{getDisplayName(selectedConversation.other_profile)}</strong>
-                        </Link>
-                        <span>@{selectedConversation.other_profile.username}</span>
-                      </div>
-                      {selectedConversation.item_id && (
+                    <div className="messages-conversation-top">
+                      <header className="messages-conversation-header">
+                        <span className="messages-avatar">
+                          {selectedConversation.other_profile.avatar_url ? (
+                            <span
+                              role="img"
+                              aria-label={getDisplayName(selectedConversation.other_profile)}
+                              style={{ backgroundImage: `url("${selectedConversation.other_profile.avatar_url}")` }}
+                            />
+                          ) : (
+                            getDisplayName(selectedConversation.other_profile).slice(0, 1).toUpperCase()
+                          )}
+                        </span>
+                        <div>
+                          <Link href={`/u/${encodeURIComponent(selectedConversation.other_profile.username)}`}>
+                            <strong>{getDisplayName(selectedConversation.other_profile)}</strong>
+                          </Link>
+                          <span>@{selectedConversation.other_profile.username}</span>
+                        </div>
+                      </header>
+                      {selectedConversation.item && (
                         <Link
-                          className="messages-item-link"
-                          href={`/item/${encodeURIComponent(selectedConversation.item_id)}`}
+                          aria-label={`${t("chat.itemContext")}: ${selectedConversation.item.title}`}
+                          className="messages-item-card"
+                          href={`/item/${encodeURIComponent(selectedConversation.item.id)}`}
                         >
-                          {t("chat.itemContext")}
+                          <span className="messages-item-card-photo">
+                            {selectedConversation.item.photo ? (
+                              <span
+                                aria-label={selectedConversation.item.title}
+                                role="img"
+                                style={{
+                                  backgroundImage: `url("${selectedConversation.item.photo}")`,
+                                }}
+                              />
+                            ) : (
+                              <span aria-hidden="true">⌕</span>
+                            )}
+                          </span>
+                          <span className="messages-item-card-copy">
+                            <strong>{selectedConversation.item.title}</strong>
+                            <small>
+                              {selectedConversation.item.price === null
+                                ? t("chat.priceUnavailable")
+                                : new Intl.NumberFormat(locale, {
+                                    style: "currency",
+                                    currency: "KZT",
+                                    maximumFractionDigits: 2,
+                                  }).format(selectedConversation.item.price)}
+                            </small>
+                          </span>
                         </Link>
                       )}
-                    </header>
+                    </div>
                     {(conversationError || isConversationUnavailable) && (
                       <Alert severity="error">
                         {conversationError || "Чат не найден или у вас нет к нему доступа."}

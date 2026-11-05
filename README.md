@@ -27,9 +27,10 @@ npm run dev
 ## Supabase
 
 Добавьте `NEXT_PUBLIC_SUPABASE_URL` и `NEXT_PUBLIC_SUPABASE_ANON_KEY` в `.env.local`.
-Для существующего проекта выполните `supabase/chat.sql` в Supabase SQL Editor,
-чтобы включить личные сообщения и Realtime. При первоначальной настройке сначала
-выполните `supabase/schema.sql`.
+Для уже настроенного проекта выполните `supabase/chat.sql` в Supabase SQL Editor:
+скрипт создаёт защищённые личные чаты, отметки прочтения, Realtime и необязательное
+поле цены объявления. Его можно выполнять повторно. При первоначальной настройке
+сначала выполните `supabase/schema.sql`.
 
 На главной также показываются примеры объявлений; для них чат недоступен.
 
