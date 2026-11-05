@@ -6,16 +6,12 @@ import Link from "next/link";
 import SiteFooter from "@/components/site-footer";
 import SiteHeader from "@/components/site-header";
 import VerifiedBadge from "@/components/verified-badge";
-import { useLanguage } from "@/components/language-provider";
 import { getProfileByUsername, getProfileItems, isValidUsername, type Profile } from "@/lib/profiles";
 import type { Item } from "@/lib/items";
-import { useDemoAuth } from "@/lib/use-demo-auth";
 
 type ProfileItem = Item & { status: "searching" | "found" | "returned" };
 
 export default function PublicProfilePage({ username }: { username: string }) {
-  const { t } = useLanguage();
-  const { user } = useDemoAuth();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [items, setItems] = useState<ProfileItem[]>([]);
   const [tab, setTab] = useState<"mine" | "found" | "returned">("mine");
@@ -71,14 +67,7 @@ export default function PublicProfilePage({ username }: { username: string }) {
                 {profile.role === "admin" && <span className="admin-badge">Admin</span>}
                 {profile.bio && <p>{profile.bio}</p>}
                 {(profile.faculty || profile.course) && <p>{[profile.faculty, profile.course ? `${profile.course} курс` : ""].filter(Boolean).join(" · ")}</p>}
-                {user?.id !== profile.id && (
-                  <Link
-                    className="profile-message-link"
-                    href={`/messages?userId=${encodeURIComponent(profile.id)}`}
-                  >
-                    {t("chat.writeMessage")} ↗
-                  </Link>
-                )}
+                {profile.contact_telegram && <a href={`https://t.me/${encodeURIComponent(profile.contact_telegram.replace(/^@/, ""))}`} rel="noreferrer" target="_blank">Написать в Telegram ↗</a>}
               </div>
             </header>
             <div className="profile-tabs" role="tablist" aria-label="Объявления пользователя">

@@ -50,7 +50,7 @@ export default function AdminPage() {
     try {
       const { data: currentProfile, error: profileError } = await supabase
         .from("profiles")
-        .select("id,username,full_name,avatar_url,bio,faculty,course,role,is_verified,is_blocked,created_at")
+        .select("id,username,full_name,avatar_url,bio,faculty,course,contact_telegram,role,is_verified,is_blocked,created_at")
         .eq("id", user.id)
         .maybeSingle();
       if (profileError) throw new Error(profileError.message);
@@ -61,7 +61,7 @@ export default function AdminPage() {
       }
 
       const [usersResult, itemsResult, reportsResult, usersCount, itemsCount, reportsCount, returnedCount] = await Promise.all([
-        supabase.from("profiles").select("id,username,full_name,avatar_url,bio,faculty,course,role,is_verified,is_blocked,created_at").order("created_at", { ascending: false }),
+        supabase.from("profiles").select("id,username,full_name,avatar_url,bio,faculty,course,contact_telegram,role,is_verified,is_blocked,created_at").order("created_at", { ascending: false }),
         supabase.from("items").select("id,title,type,status,created_at,profiles!items_user_profile_fkey(username)").order("created_at", { ascending: false }).limit(100),
         supabase.from("reports").select("id,item_id,reason,status,created_at,items(title)").order("created_at", { ascending: false }).limit(100),
         supabase.from("profiles").select("id", { count: "exact", head: true }),

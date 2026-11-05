@@ -59,7 +59,6 @@ begin
     alter table public.items add column if not exists photos text[] not null default '{}';
     alter table public.items add column if not exists updated_at timestamptz not null default now();
     alter table public.items alter column description set default '';
-    alter table public.items add column if not exists contact_method text not null default '';
     alter table public.items alter column contact_method set default '';
 
     if exists (select 1 from information_schema.columns where table_schema='public' and table_name='items' and column_name='image_data_url') then
@@ -344,15 +343,11 @@ create policy "Admins manage profiles"
 -- Column grants prevent users from changing privileged fields; admin policy
 -- permits those same columns for admins only.
 revoke update on public.profiles from anon, authenticated;
-revoke update (contact_telegram) on public.profiles from anon, authenticated;
-grant update (username, full_name, avatar_url, bio, faculty, course)
+grant update (username, full_name, avatar_url, bio, faculty, course, contact_telegram)
   on public.profiles to authenticated;
 grant update (role, is_verified, is_blocked)
   on public.profiles to authenticated;
-revoke select on public.profiles from anon, authenticated;
-revoke select (contact_telegram) on public.profiles from anon, authenticated;
-grant select (id, username, full_name, avatar_url, bio, faculty, course, role, is_verified, is_blocked, created_at)
-  on public.profiles to anon, authenticated;
+grant select on public.profiles to anon, authenticated;
 
 create policy "Public can read visible items"
   on public.items for select to anon, authenticated
@@ -380,17 +375,8 @@ create policy "Admins delete reports"
   on public.reports for delete to authenticated using (public.is_admin());
 
 -- Data API privileges are explicit; RLS remains the row-level boundary.
-revoke select on public.items from anon, authenticated;
-revoke select (contact_method) on public.items from anon, authenticated;
-grant select (id, user_id, type, title, description, category, location, date, photos, status, created_at, updated_at)
-  on public.items to anon, authenticated;
-revoke insert, update on public.items from authenticated;
-revoke insert (contact_method), update (contact_method) on public.items from authenticated;
-grant insert (id, user_id, type, title, description, category, location, date, photos, status)
-  on public.items to authenticated;
-grant update (title, description, category, location, date, photos, status)
-  on public.items to authenticated;
-grant delete on public.items to authenticated;
+grant select on public.items to anon, authenticated;
+grant insert, update, delete on public.items to authenticated;
 grant insert on public.reports to authenticated;
 grant select, update, delete on public.reports to authenticated;
 

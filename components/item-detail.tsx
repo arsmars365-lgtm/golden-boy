@@ -69,7 +69,6 @@ export default function ItemDetail({ id }: { id: string }) {
     storedItems.find((storedItem) => storedItem.id === id) ??
     DEMO_ITEMS.find((demoItem) => demoItem.id === id) ??
     null;
-  const itemOwnerId = item?.ownerId;
   const isExampleItem = DEMO_ITEMS.some((demoItem) => demoItem.id === id);
   const isOwnItem =
     isReady &&
@@ -237,6 +236,12 @@ export default function ItemDetail({ id }: { id: string }) {
     );
   }
 
+  const telegramUsername = item.telegram?.trim().replace(/^@/, "");
+  const validTelegramUsername =
+    telegramUsername && /^[A-Za-z0-9_]{5,32}$/.test(telegramUsername)
+      ? telegramUsername
+      : null;
+
   return (
     <main className="foundly-shell container-fluid px-0">
       <SiteHeader active="item" />
@@ -394,7 +399,7 @@ export default function ItemDetail({ id }: { id: string }) {
               );
             })()}
 
-            {itemOwnerId && itemOwnerId !== user?.id && !isOwnItem ? (
+            {validTelegramUsername ? (
               <div className="detail-contact">
                 <div>
                   <h2>{t("detail.contact")}</h2>
@@ -402,24 +407,27 @@ export default function ItemDetail({ id }: { id: string }) {
                 </div>
                 <Button
                   className="detail-primary-button"
-                  onClick={() => {
-                    router.push(
-                      `/messages?userId=${encodeURIComponent(itemOwnerId)}&itemId=${encodeURIComponent(item.id)}`,
-                    );
-                  }}
+                  component="a"
+                  href={`https://t.me/${validTelegramUsername}`}
+                  rel="noreferrer"
+                  target="_blank"
                   variant="contained"
                 >
-                  {t("detail.openChat")} <span aria-hidden="true">↗</span>
+                  {t("detail.messageTelegram")} <span aria-hidden="true">↗</span>
                 </Button>
               </div>
-            ) : !isOwnItem ? (
+            ) : (
               <div className="detail-contact">
                 <div>
-                  <h2>{t("detail.contact")}</h2>
-                  <p>{t("detail.chatUnavailable")}</p>
+                  <h2>Связаться с автором</h2>
+                  <p>
+                    {item.telegram
+                      ? "Telegram-ник указан в неверном формате."
+                      : "Автор не указал Telegram для связи."}
+                  </p>
                 </div>
               </div>
-            ) : null}
+            )}
 
             {isOwnItem && (
               <div className="owner-actions">

@@ -8,6 +8,7 @@ export type Profile = {
   bio: string;
   faculty: string;
   course: number | null;
+  contact_telegram: string;
   role: "user" | "admin";
   is_verified: boolean;
   is_blocked: boolean;
@@ -22,7 +23,7 @@ export async function getProfileByUsername(username: string): Promise<Profile | 
   if (!isValidUsername(username)) return null;
   const { data, error } = await getSupabaseClient()
     .from("profiles")
-    .select("id,username,full_name,avatar_url,bio,faculty,course,role,is_verified,is_blocked,created_at")
+    .select("id,username,full_name,avatar_url,bio,faculty,course,contact_telegram,role,is_verified,is_blocked,created_at")
     .ilike("username", username)
     .maybeSingle();
 
@@ -33,7 +34,7 @@ export async function getProfileByUsername(username: string): Promise<Profile | 
 export async function getCurrentProfile(userId: string): Promise<Profile | null> {
   const { data, error } = await getSupabaseClient()
     .from("profiles")
-    .select("id,username,full_name,avatar_url,bio,faculty,course,role,is_verified,is_blocked,created_at")
+    .select("id,username,full_name,avatar_url,bio,faculty,course,contact_telegram,role,is_verified,is_blocked,created_at")
     .eq("id", userId)
     .maybeSingle();
 
@@ -44,7 +45,7 @@ export async function getCurrentProfile(userId: string): Promise<Profile | null>
 export async function getProfileItems(userId: string) {
   const { data, error } = await getSupabaseClient()
     .from("items")
-    .select("id,user_id,title,category,type,location,date,photos,status,description,created_at,profiles!items_user_profile_fkey(username,full_name,is_verified)")
+    .select("id,user_id,title,category,type,location,date,photos,status,description,contact_method,created_at,profiles!items_user_profile_fkey(username,full_name,is_verified)")
     .eq("user_id", userId)
     .neq("status", "hidden")
     .order("created_at", { ascending: false });

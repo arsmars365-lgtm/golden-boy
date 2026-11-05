@@ -4,12 +4,10 @@ import { useState } from "react";
 import Button from "@mui/material/Button";
 import Link from "next/link";
 import { logoutDemoUser } from "@/lib/demo-auth";
-import { useLanguage } from "@/components/language-provider";
 import { useDemoAuth } from "@/lib/use-demo-auth";
 import { useItemNotifications } from "@/lib/use-item-notifications";
 
 export default function HeaderAccount() {
-  const { t } = useLanguage();
   const { user, isReady, error: sessionError } = useDemoAuth();
   const { unreadCount } = useItemNotifications();
   const [logoutError, setLogoutError] = useState("");
@@ -42,17 +40,6 @@ export default function HeaderAccount() {
     <div className="header-account">
       {user ? (
         <>
-          <Link
-            aria-label={t("nav.messages")}
-            className="header-messages-link"
-            href="/messages"
-            title={t("nav.messages")}
-          >
-            <svg aria-hidden="true" fill="none" viewBox="0 0 24 24">
-              <path d="M20 11.5a7.5 7.5 0 0 1-7.5 7.5H5l1.7-3.1A7.5 7.5 0 1 1 20 11.5Z" />
-              <path d="M8.5 11.5h7M8.5 14.5h4" />
-            </svg>
-          </Link>
           <Link
             aria-label={`Уведомления о похожих находках${unreadCount ? `, непрочитанных: ${unreadCount}` : ""}`}
             className="header-notifications-link"

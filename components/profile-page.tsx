@@ -23,7 +23,7 @@ const profileTabs: { id: ProfileTab; label: string }[] = [
   { id: "listings", label: "Мои объявления" },
   { id: "favorites", label: "Избранное" },
   { id: "notifications", label: "Уведомления" },
-  { id: "settings", label: "Редактирование" },
+  { id: "settings", label: "Настройки" },
 ];
 
 export default function ProfilePage() {
@@ -51,7 +51,8 @@ export default function ProfilePage() {
   const [bio, setBio] = useState("");
   const [faculty, setFaculty] = useState("");
   const [course, setCourse] = useState("");
-  const [avatarSelection, setAvatarSelection] = useState<{ file: File; previewUrl: string } | null>(null);
+  const [telegram, setTelegram] = useState("");
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
@@ -67,12 +68,6 @@ export default function ProfilePage() {
   }
 
   useEffect(() => {
-    return () => {
-      if (avatarSelection) URL.revokeObjectURL(avatarSelection.previewUrl);
-    };
-  }, [avatarSelection]);
-
-  useEffect(() => {
     if (!user) return;
     let active = true;
     void getCurrentProfile(user.id).then((currentProfile) => {
@@ -83,6 +78,7 @@ export default function ProfilePage() {
       setBio(currentProfile.bio);
       setFaculty(currentProfile.faculty);
       setCourse(currentProfile.course?.toString() ?? "");
+      setTelegram(currentProfile.contact_telegram);
     }).catch((loadError: unknown) => {
       if (active) setError(loadError instanceof Error ? loadError.message : "Не удалось загрузить профиль.");
     }).finally(() => {
@@ -90,18 +86,6 @@ export default function ProfilePage() {
     });
     return () => { active = false; };
   }, [user]);
-
-  const completedFields = [
-    username.trim(),
-    fullName.trim(),
-    bio.trim(),
-    faculty.trim() || course,
-    avatarSelection || profile?.avatar_url,
-  ].filter(Boolean).length;
-  const completion = Math.round((completedFields / 5) * 100);
-  const publicProfilePath = isValidUsername(username.trim())
-    ? `/u/${encodeURIComponent(username.trim())}`
-    : "";
 
   function onAvatarChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0] ?? null;
@@ -111,19 +95,7 @@ export default function ProfilePage() {
       return;
     }
     setError("");
-    setAvatarSelection(file ? { file, previewUrl: URL.createObjectURL(file) } : null);
-  }
-
-  async function copyProfileLink() {
-    if (!publicProfilePath) return;
-    setError("");
-    setMessage("");
-    try {
-      await navigator.clipboard.writeText(`${window.location.origin}${publicProfilePath}`);
-      setMessage("Ссылка на профиль скопирована.");
-    } catch (copyError) {
-      setError(copyError instanceof Error ? copyError.message : "Не удалось скопировать ссылку.");
-    }
+    setAvatarFile(file);
   }
 
   async function saveProfile(event: FormEvent<HTMLFormElement>) {
@@ -139,11 +111,11 @@ export default function ProfilePage() {
     const supabase = getSupabaseClient();
     try {
       let avatarUrl = profile.avatar_url;
-      if (avatarSelection) {
+      if (avatarFile) {
         const path = `${user.id}/avatar-${Date.now()}`;
         const { error: uploadError } = await supabase.storage
           .from("avatars")
-          .upload(path, avatarSelection.file, { upsert: true, contentType: avatarSelection.file.type });
+          .upload(path, avatarFile, { upsert: true, contentType: avatarFile.type });
         if (uploadError) throw new Error(`Не удалось загрузить аватар: ${uploadError.message}`);
         avatarUrl = supabase.storage.from("avatars").getPublicUrl(path).data.publicUrl;
       }
@@ -156,14 +128,15 @@ export default function ProfilePage() {
           bio: bio.trim(),
           faculty: faculty.trim(),
           course: course ? Number(course) : null,
+          contact_telegram: telegram.trim().replace(/^@/, ""),
           avatar_url: avatarUrl,
         })
         .eq("id", user.id)
-        .select("id,username,full_name,avatar_url,bio,faculty,course,role,is_verified,is_blocked,created_at")
+        .select("id,username,full_name,avatar_url,bio,faculty,course,contact_telegram,role,is_verified,is_blocked,created_at")
         .single();
       if (updateError) throw new Error(`Не удалось сохранить профиль: ${updateError.message}`);
       setProfile(data as Profile);
-      setAvatarSelection(null);
+      setAvatarFile(null);
       setMessage("Профиль сохранён.");
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "Не удалось сохранить профиль.");
@@ -333,110 +306,22 @@ export default function ProfilePage() {
                     )}
                     {activeTab === "settings" && (
                       <>
-                        <div className="account-section-heading"><div><span className="section-kicker">ЛИЧНАЯ ИНФОРМАЦИЯ</span><h2>Редактирование профиля</h2></div></div>
+                        <div className="account-section-heading"><div><span className="section-kicker">ЛИЧНАЯ ИНФОРМАЦИЯ</span><h2>Настройки профиля</h2></div></div>
                         <form className="profile-edit-card" onSubmit={saveProfile}>
-                          <div className="profile-avatar-preview">
-                            {avatarSelection ? (
-                              <span
-                                role="img"
-                                aria-label="Предварительный просмотр аватара"
-                                style={{ backgroundImage: `url("${avatarSelection.previewUrl}")` }}
-                              />
-                            ) : profile.avatar_url ? (
-                              <span
-                                role="img"
-                                aria-label="Аватар профиля"
-                                style={{ backgroundImage: `url("${profile.avatar_url}")` }}
-                              />
-                            ) : (
-                              <span>{(profile.full_name || profile.username).slice(0, 1).toUpperCase()}</span>
-                            )}
-                          </div>
-                          <p className="profile-username">
-                            @{profile.username} {profile.is_verified && <VerifiedBadge />}
-                          </p>
-                          <div className="profile-edit-tools">
-                            <div className="profile-completion">
-                              <div className="profile-completion-label">
-                                <span>Заполненность профиля</span>
-                                <strong>{completion}%</strong>
-                              </div>
-                              <progress aria-label="Заполненность профиля" max={100} value={completion} />
-                            </div>
-                            <div className="profile-public-actions">
-                              {publicProfilePath && <Link href={publicProfilePath}>Открыть профиль</Link>}
-                              <Button
-                                disabled={!publicProfilePath}
-                                onClick={copyProfileLink}
-                                type="button"
-                                variant="outlined"
-                              >
-                                Скопировать ссылку
-                              </Button>
-                            </div>
-                          </div>
-                          <label className="form-group">
-                            <span className="form-label">Фото профиля</span>
-                            <input
-                              accept="image/jpeg,image/png,image/webp"
-                              onChange={onAvatarChange}
-                              type="file"
-                            />
-                          </label>
-                          <label className="form-group">
-                            <span className="form-label">Никнейм <span>*</span></span>
-                            <input
-                              maxLength={20}
-                              minLength={3}
-                              onChange={(event) => setUsername(event.target.value)}
-                              pattern="[A-Za-z0-9_]{3,20}"
-                              required
-                              value={username}
-                            />
-                          </label>
-                          <label className="form-group">
-                            <span className="form-label">Имя</span>
-                            <input
-                              maxLength={80}
-                              onChange={(event) => setFullName(event.target.value)}
-                              value={fullName}
-                            />
-                          </label>
-                          <label className="form-group">
-                            <span className="form-label">О себе</span>
-                            <textarea
-                              maxLength={500}
-                              onChange={(event) => setBio(event.target.value)}
-                              rows={4}
-                              value={bio}
-                            />
-                          </label>
-                          <div className="profile-form-columns">
-                            <label className="form-group">
-                              <span className="form-label">Факультет</span>
-                              <input
-                                maxLength={120}
-                                onChange={(event) => setFaculty(event.target.value)}
-                                value={faculty}
-                              />
-                            </label>
-                            <label className="form-group">
-                              <span className="form-label">Курс</span>
-                              <input
-                                max={8}
-                                min={1}
-                                onChange={(event) => setCourse(event.target.value)}
-                                type="number"
-                                value={course}
-                              />
-                            </label>
-                          </div>
-                          <Button disabled={saving} type="submit" variant="contained">
-                            {saving ? "Сохраняем…" : "Сохранить профиль"}
-                          </Button>
-                          <p className="profile-edit-note">
-                            Роль администратора и подтверждение профиля может менять только администратор.
-                          </p>
+                <div className="profile-avatar-preview">
+                  {profile.avatar_url ? <span role="img" aria-label="Аватар профиля" style={{ backgroundImage: `url("${profile.avatar_url}")` }} /> : <span>{(profile.full_name || profile.username).slice(0, 1).toUpperCase()}</span>}
+                </div>
+                <label className="form-group"><span className="form-label">Фото профиля</span><input accept="image/jpeg,image/png,image/webp" onChange={onAvatarChange} type="file" /></label>
+                <label className="form-group"><span className="form-label">Никнейм <span>*</span></span><input maxLength={20} minLength={3} onChange={(event) => setUsername(event.target.value)} pattern="[A-Za-z0-9_]{3,20}" required value={username} /></label>
+                <label className="form-group"><span className="form-label">Имя</span><input maxLength={80} onChange={(event) => setFullName(event.target.value)} value={fullName} /></label>
+                <label className="form-group"><span className="form-label">О себе</span><textarea maxLength={500} onChange={(event) => setBio(event.target.value)} rows={4} value={bio} /></label>
+                <div className="profile-form-columns">
+                  <label className="form-group"><span className="form-label">Факультет</span><input maxLength={120} onChange={(event) => setFaculty(event.target.value)} value={faculty} /></label>
+                  <label className="form-group"><span className="form-label">Курс</span><input max={8} min={1} onChange={(event) => setCourse(event.target.value)} type="number" value={course} /></label>
+                </div>
+                <label className="form-group"><span className="form-label">Telegram</span><input maxLength={32} onChange={(event) => setTelegram(event.target.value)} placeholder="@username" value={telegram} /></label>
+                <Button disabled={saving} type="submit" variant="contained">{saving ? "Сохраняем…" : "Сохранить профиль"}</Button>
+                <p className="profile-edit-note">Роль администратора и подтверждение профиля может менять только администратор.</p>
                         </form>
                       </>
                     )}

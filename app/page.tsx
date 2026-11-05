@@ -1,15 +1,18 @@
 "use client";
 
 import Button from "@mui/material/Button";
+import Chip from "@mui/material/Chip";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { DemoNotice } from "@/app/components/SiteHeader";
-import { useFavorites } from "@/components/favorites-provider";
-import ListingCard from "@/components/listing-card";
 import SiteFooter from "@/components/site-footer";
 import SiteHeader from "@/components/site-header";
-import { formatItemDate, getAllItems } from "@/lib/items";
+import { getAllItems } from "@/lib/items";
 import { useStoredItems, useTodayDate } from "@/lib/use-stored-items";
 import { useLanguage } from "@/components/language-provider";
+import { useDemoAuth } from "@/lib/use-demo-auth";
+import { useFavoriteItems } from "@/lib/use-favorite-items";
 
 type TimeFilter = "all" | "today" | "week";
 type StatusFilter = "all" | "searching" | "found" | "returned";
@@ -100,8 +103,6 @@ type TranslationSet = {
     returned: string;
     foundStatus: string;
     more: string;
-    addFavorite: string;
-    inFavorites: string;
   };
   footer: {
     about: string;
@@ -179,8 +180,6 @@ const translations: Record<Language, TranslationSet> = {
       returned: "Қайтарылды",
       foundStatus: "Табылды",
       more: "Толығырақ",
-      addFavorite: "Таңдаулыларға",
-      inFavorites: "Таңдаулыларда",
     },
     footer: {
       about: "Жоба туралы",
@@ -254,8 +253,6 @@ const translations: Record<Language, TranslationSet> = {
       returned: "Возвращено",
       foundStatus: "Найдено",
       more: "Подробнее",
-      addFavorite: "В избранное",
-      inFavorites: "В избранном",
     },
     footer: {
       about: "О проекте",
@@ -329,8 +326,6 @@ const translations: Record<Language, TranslationSet> = {
       returned: "Returned",
       foundStatus: "Found",
       more: "More details",
-      addFavorite: "Save to favorites",
-      inFavorites: "In favorites",
     },
     footer: {
       about: "About",
@@ -483,8 +478,39 @@ function Magnifier() {
   );
 }
 
+function Pin() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
+      <path d="M19 10.1c0 5.2-7 11-7 11s-7-5.8-7-11a7 7 0 1 1 14 0Z" />
+      <circle cx="12" cy="10" r="2.2" />
+    </svg>
+  );
+}
+
+function formatItemDate(daysAgo: number, time: string, language: Language) {
+  if (daysAgo === 0) {
+    return language === "en" ? `Today, ${time}` : language === "kk" ? `Бүгін, ${time}` : `Сегодня, ${time}`;
+  }
+  if (daysAgo === 1) {
+    return language === "en" ? `Yesterday, ${time}` : language === "kk" ? `Кеше, ${time}` : `Вчера, ${time}`;
+  }
+
+  if (language === "en") {
+    return `${daysAgo} day${daysAgo > 1 ? "s" : ""} ago, ${time}`;
+  }
+
+  if (language === "kk") {
+    return `${daysAgo} күн бұрын, ${time}`;
+  }
+
+  return `${daysAgo} ${daysAgo < 5 ? "дня" : "дней"} назад, ${time}`;
+}
+
 export default function Home() {
+  const router = useRouter();
   const { language } = useLanguage();
+  const { user } = useDemoAuth();
+  const { favoriteIds, toggleFavorite } = useFavoriteItems(user?.id ?? null);
   const [query, setQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState<"all" | ItemType>("all");
   const [category, setCategory] = useState<string>("all");
@@ -492,11 +518,6 @@ export default function Home() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [visibleCount, setVisibleCount] = useState(12);
   const { items: storedItems, error: storageError } = useStoredItems();
-  const {
-    favoriteIds,
-    isReady: favoritesReady,
-    toggleFavorite,
-  } = useFavorites();
   const today = useTodayDate();
   const items = useMemo(() => getAllItems(storedItems), [storedItems]);
 
@@ -721,19 +742,86 @@ export default function Home() {
               const itemCategory = localizedItem?.categoryKey ?? categoryKeyByName[item.category];
 
               return (
-                <div className="col-12 col-sm-6 col-lg-4" key={item.id}>
-                  <ListingCard
-                    item={item}
-                    title={title}
-                    place={place}
-                    details={details}
-                    category={itemCategory ? t.categories[itemCategory] : item.category}
-                    dateLabel={formatItemDate(item.daysAgo, item.time, language)}
-                    labels={t.card}
-                    isFavorite={favoriteIds.includes(item.id)}
-                    favoritesReady={favoritesReady}
-                    onToggleFavorite={toggleFavorite}
-                  />
+                <div className="col-12 col-sm-6 col-lg-4 item-card-shell" key={item.id}>
+                  <Link
+                    className="item-card"
+                    href={`/item/${item.id}`}
+                    aria-label={`${t.card.more}: ${title}`}
+                  >
+                    <div
+                      className={`item-art ${item.art}${item.imageDataUrl ? " has-photo" : ""}`}
+                      style={
+                        item.imageDataUrl
+                          ? { backgroundImage: `url("${item.imageDataUrl}")` }
+                          : undefined
+                      }
+                    >
+                      {!item.imageDataUrl && (
+                        <>
+                          <span className="art-shape art-shape-one" />
+                          <span className="art-shape art-shape-two" />
+                          <span className="art-symbol">{item.symbol}</span>
+                        </>
+                      )}
+                      <Chip
+                        className={`type-badge ${item.type}`}
+                        label={item.type === "lost" ? t.card.lost : t.card.found}
+                        size="small"
+                      />
+                      <span className="art-date">
+                        {formatItemDate(item.daysAgo, item.time, language)}
+                      </span>
+                    </div>
+                    <div className="item-card-content">
+                      <div className="item-card-title-row">
+                        <h3>{title}</h3>
+                        <span className="item-arrow" aria-hidden="true">
+                          ↗
+                        </span>
+                      </div>
+                      <div className="item-meta">
+                        <span className="category-label">
+                          {itemCategory ? t.categories[itemCategory] : item.category}
+                        </span>
+                        <span className="place-label">
+                          <Pin /> {place}
+                        </span>
+                      </div>
+                      {item.ownerUsername && (
+                        <span className="item-author">
+                          @{item.ownerUsername}
+                          {item.ownerVerified && <span className="item-verified-dot" aria-label="Подтверждённый пользователь">✓</span>}
+                        </span>
+                      )}
+                      <p className="item-description">{details}</p>
+                      <div className="item-card-footer">
+                        <span className={`status-label ${item.status}`}>
+                          <span />{" "}
+                          {item.status === "returned"
+                            ? t.card.returned
+                            : item.status === "found"
+                              ? t.card.foundStatus
+                              : t.card.ownerSearch}
+                        </span>
+                        <span className="card-open">{t.card.more}</span>
+                      </div>
+                    </div>
+                  </Link>
+                  <button
+                    aria-label={favoriteIds.includes(item.id) ? `Убрать «${title}» из избранного` : `Добавить «${title}» в избранное`}
+                    aria-pressed={favoriteIds.includes(item.id)}
+                    className={`item-card-favorite${favoriteIds.includes(item.id) ? " is-favorite" : ""}`}
+                    onClick={() => {
+                      if (!user) {
+                        router.push("/login");
+                        return;
+                      }
+                      toggleFavorite(item.id);
+                    }}
+                    type="button"
+                  >
+                    {favoriteIds.includes(item.id) ? "♥" : "♡"}
+                  </button>
                 </div>
               );
             })}

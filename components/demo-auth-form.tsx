@@ -4,7 +4,7 @@ import { useState, type FormEvent } from "react";
 import Alert from "@mui/material/Alert";
 import Button from "@mui/material/Button";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import SiteFooter from "@/components/site-footer";
 import SiteHeader from "@/components/site-header";
 import { loginDemoUser, registerDemoUser } from "@/lib/demo-auth";
@@ -15,17 +15,7 @@ type DemoAuthFormProps = {
 
 export default function DemoAuthForm({ mode }: DemoAuthFormProps) {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const isRegister = mode === "register";
-  const requestedPath = searchParams.get("next");
-  const redirectPath =
-    requestedPath?.startsWith("/") && !requestedPath.startsWith("//")
-      ? requestedPath
-      : "/";
-  const authSwitchPath = isRegister ? "/login" : "/register";
-  const authSwitchHref = requestedPath
-    ? `${authSwitchPath}?next=${encodeURIComponent(redirectPath)}`
-    : authSwitchPath;
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -56,7 +46,7 @@ export default function DemoAuthForm({ mode }: DemoAuthFormProps) {
       } else {
         await loginDemoUser(email, password);
       }
-      router.replace(redirectPath);
+      router.replace("/");
     } catch (authError) {
       setError(
         authError instanceof Error
@@ -174,7 +164,7 @@ export default function DemoAuthForm({ mode }: DemoAuthFormProps) {
 
           <p className="auth-switch">
             {isRegister ? "Уже есть аккаунт?" : "Впервые в Foundly?"}{" "}
-            <Link href={authSwitchHref}>
+            <Link href={isRegister ? "/login" : "/register"}>
               {isRegister ? "Войти" : "Зарегистрироваться"}
             </Link>
           </p>
