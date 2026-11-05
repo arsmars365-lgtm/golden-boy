@@ -3,6 +3,10 @@
 import { useState, type FormEvent } from "react";
 import Alert from "@mui/material/Alert";
 import Button from "@mui/material/Button";
+import Dialog from "@mui/material/Dialog";
+import DialogActions from "@mui/material/DialogActions";
+import DialogContent from "@mui/material/DialogContent";
+import DialogTitle from "@mui/material/DialogTitle";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import SiteFooter from "@/components/site-footer";
@@ -20,7 +24,7 @@ import {
   type Item,
   type ItemStatus,
 } from "@/lib/items";
-import { useStoredItems } from "@/lib/use-stored-items";
+import { useStoredItems, useTodayDate } from "@/lib/use-stored-items";
 import { useDemoAuth } from "@/lib/use-demo-auth";
 import VerifiedBadge from "@/components/verified-badge";
 import { useFavoriteItems } from "@/lib/use-favorite-items";
@@ -45,6 +49,7 @@ function formattedDate(item: Item, language: Language) {
 export default function ItemDetail({ id }: { id: string }) {
   const { language, t } = useLanguage();
   const router = useRouter();
+  const today = useTodayDate();
   const { items: storedItems, error: storageError, isReady } = useStoredItems();
   const { user, isReady: isAuthReady } = useDemoAuth();
   const { favoriteIds, toggleFavorite, error: favoritesError } = useFavoriteItems(user?.id ?? null);
@@ -58,6 +63,7 @@ export default function ItemDetail({ id }: { id: string }) {
   const [reportReason, setReportReason] = useState("");
   const [reportMessage, setReportMessage] = useState("");
   const [isEditing, setIsEditing] = useState(false);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [editTitle, setEditTitle] = useState("");
   const [editCategory, setEditCategory] = useState("");
   const [editType, setEditType] = useState<"lost" | "found">("lost");
@@ -121,6 +127,7 @@ export default function ItemDetail({ id }: { id: string }) {
       setActionError(t("form.error.telegram"));
       return;
     }
+    setIsSavingEdit(true);
     try {
       if (!user) throw new Error("Войди в аккаунт.");
       await updateStoredItem(id, user.id, {
@@ -133,9 +140,18 @@ export default function ItemDetail({ id }: { id: string }) {
         telegram: telegramUsername,
       });
       setIsEditing(false);
+      setActionError("");
     } catch (editError) {
       setActionError(editError instanceof Error ? editError.message : "Не удалось изменить объявление.");
+    } finally {
+      setIsSavingEdit(false);
     }
+  }
+
+  function closeEditDialog() {
+    if (isSavingEdit) return;
+    setIsEditing(false);
+    setActionError("");
   }
 
   async function handleDelete() {
@@ -338,9 +354,9 @@ export default function ItemDetail({ id }: { id: string }) {
               </Button>
             </div>
 
-            {(storageError || actionError || favoritesError || notificationsError) && (
+            {(storageError || (!isEditing && actionError) || favoritesError || notificationsError) && (
               <Alert className="detail-alert" severity="error">
-                {storageError || actionError || favoritesError || notificationsError}
+                {storageError || (!isEditing && actionError) || favoritesError || notificationsError}
               </Alert>
             )}
             {reportMessage && (
@@ -431,21 +447,9 @@ export default function ItemDetail({ id }: { id: string }) {
 
             {isOwnItem && (
               <div className="owner-actions">
-                <Button onClick={isEditing ? () => setIsEditing(false) : beginEditing} variant="outlined">
-                  {isEditing ? "Отменить редактирование" : "Редактировать объявление"}
+                <Button onClick={beginEditing} variant="outlined">
+                  Редактировать объявление
                 </Button>
-                {isEditing && (
-                  <form className="item-edit-form" onSubmit={handleEditSubmit}>
-                    <label className="form-group"><span className="form-label">Название</span><input maxLength={80} onChange={(event) => setEditTitle(event.target.value)} required value={editTitle} /></label>
-                    <label className="form-group"><span className="form-label">Тип объявления</span><select onChange={(event) => { if (event.target.value === "lost" || event.target.value === "found") setEditType(event.target.value); }} value={editType}><option value="lost">Потерял</option><option value="found">Нашёл</option></select></label>
-                    <label className="form-group"><span className="form-label">Категория</span><select onChange={(event) => setEditCategory(event.target.value)} required value={editCategory}>{ITEM_CATEGORIES.map((category) => <option key={category} value={category}>{category}</option>)}</select></label>
-                    <label className="form-group"><span className="form-label">Место</span><input maxLength={120} onChange={(event) => setEditPlace(event.target.value)} required value={editPlace} /></label>
-                    <label className="form-group"><span className="form-label">Дата</span><input onChange={(event) => setEditDate(event.target.value)} required type="date" value={editDate} /></label>
-                    <label className="form-group"><span className="form-label">Описание</span><textarea maxLength={1500} onChange={(event) => setEditDetails(event.target.value)} rows={4} value={editDetails} /></label>
-                    <label className="form-group"><span className="form-label">Telegram</span><input maxLength={33} onChange={(event) => setEditTelegram(event.target.value)} required value={editTelegram} /></label>
-                    <Button type="submit" variant="contained">Сохранить</Button>
-                  </form>
-                )}
                 <label htmlFor="item-status">{t("detail.status")}</label>
                 <select
                   id="item-status"
@@ -475,6 +479,128 @@ export default function ItemDetail({ id }: { id: string }) {
                 </Button>
               </div>
             )}
+
+            <Dialog
+              aria-labelledby="item-edit-title"
+              className="item-edit-dialog"
+              fullWidth
+              maxWidth="sm"
+              onClose={closeEditDialog}
+              open={isEditing}
+            >
+              <DialogTitle className="item-edit-dialog-title" id="item-edit-title">
+                <span>Редактировать объявление</span>
+                <button
+                  aria-label="Закрыть окно"
+                  className="item-edit-close"
+                  disabled={isSavingEdit}
+                  onClick={closeEditDialog}
+                  type="button"
+                >
+                  ×
+                </button>
+              </DialogTitle>
+              <DialogContent className="item-edit-dialog-content" dividers>
+                <p className="item-edit-intro">
+                  Обновите информацию — изменения сразу появятся в публикации.
+                </p>
+                {actionError && <Alert severity="error">{actionError}</Alert>}
+                <form className="item-edit-form" id="item-edit-form" onSubmit={handleEditSubmit}>
+                  <label className="form-group">
+                    <span className="form-label">Название <span>*</span></span>
+                    <input
+                      autoFocus
+                      maxLength={80}
+                      onChange={(event) => setEditTitle(event.target.value)}
+                      required
+                      value={editTitle}
+                    />
+                  </label>
+                  <div className="item-edit-fields-row">
+                    <label className="form-group">
+                      <span className="form-label">Тип объявления <span>*</span></span>
+                      <select
+                        onChange={(event) => {
+                          if (event.target.value === "lost" || event.target.value === "found") {
+                            setEditType(event.target.value);
+                          }
+                        }}
+                        value={editType}
+                      >
+                        <option value="lost">Потерял(а)</option>
+                        <option value="found">Нашёл(ла)</option>
+                      </select>
+                    </label>
+                    <label className="form-group">
+                      <span className="form-label">Категория <span>*</span></span>
+                      <select
+                        onChange={(event) => setEditCategory(event.target.value)}
+                        required
+                        value={editCategory}
+                      >
+                        {ITEM_CATEGORIES.map((category) => (
+                          <option key={category} value={category}>{category}</option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+                  <div className="item-edit-fields-row">
+                    <label className="form-group">
+                      <span className="form-label">Место <span>*</span></span>
+                      <input
+                        maxLength={120}
+                        onChange={(event) => setEditPlace(event.target.value)}
+                        required
+                        value={editPlace}
+                      />
+                    </label>
+                    <label className="form-group">
+                      <span className="form-label">Дата <span>*</span></span>
+                      <input
+                        max={today}
+                        onChange={(event) => setEditDate(event.target.value)}
+                        required
+                        type="date"
+                        value={editDate}
+                      />
+                    </label>
+                  </div>
+                  <label className="form-group">
+                    <span className="form-label">Описание</span>
+                    <textarea
+                      maxLength={1500}
+                      onChange={(event) => setEditDetails(event.target.value)}
+                      rows={4}
+                      value={editDetails}
+                    />
+                    <span className="item-edit-character-count">{editDetails.length}/1500</span>
+                  </label>
+                  <label className="form-group">
+                    <span className="form-label">Telegram <span>*</span></span>
+                    <div className="telegram-input">
+                      <span aria-hidden="true">@</span>
+                      <input
+                        autoComplete="username"
+                        maxLength={33}
+                        onChange={(event) => setEditTelegram(event.target.value)}
+                        placeholder="username"
+                        required
+                        value={editTelegram}
+                      />
+                    </div>
+                    <span className="item-edit-hint">Укажите имя пользователя без ссылки, например @student.</span>
+                  </label>
+                </form>
+              </DialogContent>
+              <DialogActions className="item-edit-dialog-actions">
+                <Button disabled={isSavingEdit} onClick={closeEditDialog} variant="outlined">
+                  Отмена
+                </Button>
+                <Button disabled={isSavingEdit} form="item-edit-form" type="submit" variant="contained">
+                  {isSavingEdit ? "Сохраняем…" : "Сохранить изменения"}
+                </Button>
+              </DialogActions>
+            </Dialog>
 
             {!isExampleItem && (
               <details className="report-box">
