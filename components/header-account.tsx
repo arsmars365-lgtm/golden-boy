@@ -10,10 +10,10 @@ export default function HeaderAccount() {
   const { user, isReady, error: sessionError } = useDemoAuth();
   const [logoutError, setLogoutError] = useState("");
 
-  function handleLogout() {
+  async function handleLogout() {
     setLogoutError("");
     try {
-      logoutDemoUser();
+      await logoutDemoUser();
     } catch (error) {
       setLogoutError(
         error instanceof Error ? error.message : "Не удалось выйти из аккаунта.",
@@ -38,7 +38,7 @@ export default function HeaderAccount() {
     <div className="header-account">
       {user ? (
         <>
-          <span className="header-user-name">{user.name}</span>
+          <Link className="header-user-name" href="/profile">{user.name}</Link>
           <Button className="logout-button" onClick={handleLogout}>
             Выйти
           </Button>

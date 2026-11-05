@@ -11,6 +11,7 @@ import { useLanguage } from "@/components/language-provider";
 import { categoryTranslationKey, type Language } from "@/lib/messages";
 import {
   DEMO_ITEMS,
+  ITEM_CATEGORIES,
   deleteStoredItem,
   formatItemDate,
   isStoredItem,
@@ -21,6 +22,7 @@ import {
 } from "@/lib/items";
 import { useStoredItems } from "@/lib/use-stored-items";
 import { useDemoAuth } from "@/lib/use-demo-auth";
+import VerifiedBadge from "@/components/verified-badge";
 
 function formattedDate(item: Item, language: Language) {
   if (!item.date) {
@@ -45,11 +47,20 @@ export default function ItemDetail({ id }: { id: string }) {
   const [actionError, setActionError] = useState("");
   const [reportReason, setReportReason] = useState("");
   const [reportMessage, setReportMessage] = useState("");
+  const [isEditing, setIsEditing] = useState(false);
+  const [editTitle, setEditTitle] = useState("");
+  const [editCategory, setEditCategory] = useState("");
+  const [editType, setEditType] = useState<"lost" | "found">("lost");
+  const [editPlace, setEditPlace] = useState("");
+  const [editDate, setEditDate] = useState("");
+  const [editDetails, setEditDetails] = useState("");
+  const [editTelegram, setEditTelegram] = useState("");
   const item =
     storedItems.find((storedItem) => storedItem.id === id) ??
     DEMO_ITEMS.find((demoItem) => demoItem.id === id) ??
     null;
-  const isOwnDemoItem =
+  const isExampleItem = DEMO_ITEMS.some((demoItem) => demoItem.id === id);
+  const isOwnItem =
     isReady &&
     isAuthReady &&
     isStoredItem(id, storedItems, user?.id);
@@ -65,11 +76,11 @@ export default function ItemDetail({ id }: { id: string }) {
     t("detail.reportOther"),
   ];
 
-  function handleStatusChange(status: ItemStatus) {
+  async function handleStatusChange(status: ItemStatus) {
     setActionError("");
     try {
-      if (!user) throw new Error("Войди в свой демо-аккаунт.");
-      updateStoredItem(id, user.id, { status });
+      if (!user) throw new Error("Войди в аккаунт.");
+      await updateStoredItem(id, user.id, { status });
     } catch (updateError) {
       setActionError(
         updateError instanceof Error
@@ -79,15 +90,53 @@ export default function ItemDetail({ id }: { id: string }) {
     }
   }
 
-  function handleDelete() {
+  function beginEditing() {
+    if (!item) return;
+    setEditTitle(item.title);
+    setEditCategory(item.category);
+    setEditType(item.type);
+    setEditPlace(item.place);
+    setEditDate(item.date ?? "");
+    setEditDetails(item.details);
+    setEditTelegram(item.telegram ?? "");
+    setActionError("");
+    setIsEditing(true);
+  }
+
+  async function handleEditSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setActionError("");
+    const telegramUsername = editTelegram.trim().replace(/^@/, "");
+    if (!/^[A-Za-z0-9_]{5,32}$/.test(telegramUsername)) {
+      setActionError(t("form.error.telegram"));
+      return;
+    }
+    try {
+      if (!user) throw new Error("Войди в аккаунт.");
+      await updateStoredItem(id, user.id, {
+        title: editTitle,
+        category: editCategory,
+        type: editType,
+        place: editPlace,
+        date: editDate,
+        details: editDetails,
+        telegram: telegramUsername,
+      });
+      setIsEditing(false);
+    } catch (editError) {
+      setActionError(editError instanceof Error ? editError.message : "Не удалось изменить объявление.");
+    }
+  }
+
+  async function handleDelete() {
     if (!window.confirm(t("detail.deleteConfirm"))) {
       return;
     }
 
     setActionError("");
     try {
-      if (!user) throw new Error("Войди в свой демо-аккаунт.");
-      deleteStoredItem(id, user.id);
+      if (!user) throw new Error("Войди в аккаунт.");
+      await deleteStoredItem(id, user.id);
       router.push("/");
     } catch (deleteError) {
       setActionError(
@@ -98,7 +147,7 @@ export default function ItemDetail({ id }: { id: string }) {
     }
   }
 
-  function handleReport(event: FormEvent<HTMLFormElement>) {
+  async function handleReport(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setReportMessage("");
     setActionError("");
@@ -108,7 +157,7 @@ export default function ItemDetail({ id }: { id: string }) {
     }
 
     try {
-      saveItemReport(id, reportReason);
+      await saveItemReport(id, reportReason);
       setReportMessage(
         t("detail.reportSaved"),
       );
@@ -118,6 +167,26 @@ export default function ItemDetail({ id }: { id: string }) {
         reportError instanceof Error
           ? reportError.message
           : t("detail.error.report"),
+      );
+    }
+  }
+
+  async function handleShare() {
+    setActionError("");
+    const url = window.location.href;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: item?.title, url });
+      } else {
+        await navigator.clipboard.writeText(url);
+        setReportMessage("Ссылка скопирована.");
+      }
+    } catch (shareError) {
+      if (shareError instanceof DOMException && shareError.name === "AbortError") return;
+      setActionError(
+        shareError instanceof Error
+          ? shareError.message
+          : "Не удалось поделиться ссылкой.",
       );
     }
   }
@@ -200,15 +269,24 @@ export default function ItemDetail({ id }: { id: string }) {
               <span className={`status-label ${item.status}`}>
                 <span /> {statusLabels[item.status]}
               </span>
-              {isOwnDemoItem && <span className="demo-owner-label">{t("detail.ownItem")}</span>}
+              {isOwnItem && <span className="demo-owner-label">{t("detail.ownItem")}</span>}
             </div>
 
             <h1>{item.title}</h1>
+            {item.ownerUsername && (
+              <Link className="detail-author" href={`/u/${encodeURIComponent(item.ownerUsername)}`}>
+                {item.ownerFullName || `@${item.ownerUsername}`}
+                {item.ownerVerified && <VerifiedBadge />}
+              </Link>
+            )}
             <span className="category-label detail-category">
               {categoryTranslationKey(item.category)
                 ? t(categoryTranslationKey(item.category)!)
                 : item.category}
             </span>
+            <Button className="share-item-button" onClick={handleShare} variant="outlined">
+              Поделиться <span aria-hidden="true">↗</span>
+            </Button>
 
             {(storageError || actionError) && (
               <Alert className="detail-alert" severity="error">
@@ -271,9 +349,23 @@ export default function ItemDetail({ id }: { id: string }) {
               </div>
             )}
 
-            {isOwnDemoItem && (
+            {isOwnItem && (
               <div className="owner-actions">
-                <Alert severity="warning">{t("form.demoNotice")}</Alert>
+                <Button onClick={isEditing ? () => setIsEditing(false) : beginEditing} variant="outlined">
+                  {isEditing ? "Отменить редактирование" : "Редактировать объявление"}
+                </Button>
+                {isEditing && (
+                  <form className="item-edit-form" onSubmit={handleEditSubmit}>
+                    <label className="form-group"><span className="form-label">Название</span><input maxLength={80} onChange={(event) => setEditTitle(event.target.value)} required value={editTitle} /></label>
+                    <label className="form-group"><span className="form-label">Тип объявления</span><select onChange={(event) => { if (event.target.value === "lost" || event.target.value === "found") setEditType(event.target.value); }} value={editType}><option value="lost">Потерял</option><option value="found">Нашёл</option></select></label>
+                    <label className="form-group"><span className="form-label">Категория</span><select onChange={(event) => setEditCategory(event.target.value)} required value={editCategory}>{ITEM_CATEGORIES.map((category) => <option key={category} value={category}>{category}</option>)}</select></label>
+                    <label className="form-group"><span className="form-label">Место</span><input maxLength={120} onChange={(event) => setEditPlace(event.target.value)} required value={editPlace} /></label>
+                    <label className="form-group"><span className="form-label">Дата</span><input onChange={(event) => setEditDate(event.target.value)} required type="date" value={editDate} /></label>
+                    <label className="form-group"><span className="form-label">Описание</span><textarea maxLength={1500} onChange={(event) => setEditDetails(event.target.value)} rows={4} value={editDetails} /></label>
+                    <label className="form-group"><span className="form-label">Telegram</span><input maxLength={33} onChange={(event) => setEditTelegram(event.target.value)} required value={editTelegram} /></label>
+                    <Button type="submit" variant="contained">Сохранить</Button>
+                  </form>
+                )}
                 <label htmlFor="item-status">{t("detail.status")}</label>
                 <select
                   id="item-status"
@@ -281,7 +373,6 @@ export default function ItemDetail({ id }: { id: string }) {
                     const value = event.target.value;
                     if (
                       value === "searching" ||
-                      value === "found" ||
                       value === "returned"
                     ) {
                       handleStatusChange(value);
@@ -289,7 +380,7 @@ export default function ItemDetail({ id }: { id: string }) {
                   }}
                   value={item.status}
                 >
-                  {Object.entries(statusLabels).map(([value, label]) => (
+                  {Object.entries(statusLabels).filter(([value]) => value !== "found").map(([value, label]) => (
                     <option key={value} value={value}>
                       {label}
                     </option>
@@ -305,35 +396,37 @@ export default function ItemDetail({ id }: { id: string }) {
               </div>
             )}
 
-            <details className="report-box">
-              <summary>{t("detail.report")}</summary>
-              <form onSubmit={handleReport}>
-                <label htmlFor="report-reason">{t("detail.reportReason")}</label>
-                <select
-                  id="report-reason"
-                  onChange={(event) => setReportReason(event.target.value)}
-                  required
-                  value={reportReason}
-                >
-                  <option disabled value="">
-                    {t("detail.chooseReason")}
-                  </option>
-                  {reportReasons.map((reason) => (
-                    <option key={reason} value={reason}>
-                      {reason}
+            {!isExampleItem && (
+              <details className="report-box">
+                <summary>{t("detail.report")}</summary>
+                <form onSubmit={handleReport}>
+                  <label htmlFor="report-reason">{t("detail.reportReason")}</label>
+                  <select
+                    id="report-reason"
+                    onChange={(event) => setReportReason(event.target.value)}
+                    required
+                    value={reportReason}
+                  >
+                    <option disabled value="">
+                      {t("detail.chooseReason")}
                     </option>
-                  ))}
-                </select>
-                <Button
-                  className="report-button"
-                  type="submit"
-                  variant="outlined"
-                >
-                  {t("detail.sendReport")}
-                </Button>
-              </form>
-              <p>{t("detail.reportDemo")}</p>
-            </details>
+                    {reportReasons.map((reason) => (
+                      <option key={reason} value={reason}>
+                        {reason}
+                      </option>
+                    ))}
+                  </select>
+                  <Button
+                    className="report-button"
+                    type="submit"
+                    variant="outlined"
+                  >
+                    {t("detail.sendReport")}
+                  </Button>
+                </form>
+                <p>{t("detail.reportDemo")}</p>
+              </details>
+            )}
           </article>
         </div>
 

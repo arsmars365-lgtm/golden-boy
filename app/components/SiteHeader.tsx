@@ -33,8 +33,8 @@ export function DemoNotice() {
     <div className="demo-notice" role="note">
       <span className="demo-notice-icon" aria-hidden="true">i</span>
       <p>
-        <strong>Демо-режим.</strong> Объявления хранятся только в localStorage
-        этого браузера и не отправляются на сервер.
+        <strong>Примеры объявлений.</strong> Эти карточки показывают, как
+        выглядят публикации. Объявления пользователей сохраняются в общей базе.
       </p>
     </div>
   );

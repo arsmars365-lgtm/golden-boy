@@ -21,11 +21,13 @@ export default function DemoAuthForm({ mode }: DemoAuthFormProps) {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
+    setSuccess("");
 
     if (isRegister && password !== confirmPassword) {
       setError("Пароли не совпадают.");
@@ -35,7 +37,12 @@ export default function DemoAuthForm({ mode }: DemoAuthFormProps) {
     setIsSubmitting(true);
     try {
       if (isRegister) {
-        await registerDemoUser(name, email, password);
+        const result = await registerDemoUser(name, email, password);
+        if (result.needsEmailConfirmation) {
+          setSuccess("Аккаунт создан. Подтверди email по ссылке из письма, затем войди.");
+          setIsSubmitting(false);
+          return;
+        }
       } else {
         await loginDemoUser(email, password);
       }
@@ -69,16 +76,12 @@ export default function DemoAuthForm({ mode }: DemoAuthFormProps) {
               : "Войди, чтобы управлять своими объявлениями."}
           </p>
 
-          <Alert className="demo-alert" severity="info">
-            Демо-регистрация: аккаунт хранится только в этом браузере. Это
-            демонстрация, а не защищённая серверная авторизация.
-          </Alert>
-
           {error && (
             <Alert className="form-error" severity="error">
               {error}
             </Alert>
           )}
+          {success && <Alert severity="success">{success}</Alert>}
 
           <form className="auth-form" onSubmit={handleSubmit}>
             {isRegister && (
@@ -165,6 +168,11 @@ export default function DemoAuthForm({ mode }: DemoAuthFormProps) {
               {isRegister ? "Войти" : "Зарегистрироваться"}
             </Link>
           </p>
+          {!isRegister && (
+            <p className="auth-switch">
+              <Link href="/forgot-password">Забыли пароль?</Link>
+            </p>
+          )}
         </div>
       </section>
 

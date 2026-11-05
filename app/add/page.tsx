@@ -24,6 +24,7 @@ import { useTodayDate } from "@/lib/use-stored-items";
 import { useDemoAuth } from "@/lib/use-demo-auth";
 
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
+const MAX_IMAGES = 3;
 const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
 
 function readImage(file: File): Promise<string> {
@@ -34,7 +35,23 @@ function readImage(file: File): Promise<string> {
         reject(new Error("Не удалось прочитать изображение."));
         return;
       }
-      resolve(reader.result);
+      const image = new Image();
+      image.onload = () => {
+        const maxDimension = 1600;
+        const scale = Math.min(1, maxDimension / Math.max(image.width, image.height));
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.round(image.width * scale);
+        canvas.height = Math.round(image.height * scale);
+        const context = canvas.getContext("2d");
+        if (!context) {
+          reject(new Error("Не удалось сжать фотографию."));
+          return;
+        }
+        context.drawImage(image, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL("image/jpeg", 0.82));
+      };
+      image.onerror = () => reject(new Error("Не удалось обработать фотографию."));
+      image.src = reader.result;
     };
     reader.onerror = () => reject(new Error("Не удалось прочитать изображение."));
     reader.readAsDataURL(file);
@@ -53,39 +70,46 @@ export default function AddItemPage() {
   const [place, setPlace] = useState("");
   const [date, setDate] = useState("");
   const [telegram, setTelegram] = useState("");
-  const [imageDataUrl, setImageDataUrl] = useState("");
-  const [imageName, setImageName] = useState("");
+  const [imageDataUrls, setImageDataUrls] = useState<string[]>([]);
+  const [imageNames, setImageNames] = useState<string[]>([]);
   const [error, setError] = useState("");
   const [imageError, setImageError] = useState("");
   const [isSaving, setIsSaving] = useState(false);
 
   async function handleImageChange(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
+    const files = Array.from(event.target.files ?? []);
     setImageError("");
-    if (!file) return;
+    if (!files.length) return;
+    if (files.length > MAX_IMAGES) {
+      setImageError(`Можно добавить не более ${MAX_IMAGES} фотографий.`);
+      event.target.value = "";
+      return;
+    }
 
-    if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
-      setImageDataUrl("");
-      setImageName("");
+    const invalidType = files.find((file) => !ALLOWED_IMAGE_TYPES.includes(file.type));
+    if (invalidType) {
+      setImageDataUrls([]);
+      setImageNames([]);
       setImageError(t("form.error.imageType"));
       event.target.value = "";
       return;
     }
 
-    if (file.size > MAX_IMAGE_SIZE) {
-      setImageDataUrl("");
-      setImageName("");
+    const oversizedFile = files.find((file) => file.size > MAX_IMAGE_SIZE);
+    if (oversizedFile) {
+      setImageDataUrls([]);
+      setImageNames([]);
       setImageError(t("form.error.imageSize"));
       event.target.value = "";
       return;
     }
 
     try {
-      setImageDataUrl(await readImage(file));
-      setImageName(file.name);
+      setImageDataUrls(await Promise.all(files.map(readImage)));
+      setImageNames(files.map((file) => file.name));
     } catch (imageReadError) {
-      setImageDataUrl("");
-      setImageName("");
+      setImageDataUrls([]);
+      setImageNames([]);
       setImageError(
         imageReadError instanceof Error
           ? imageReadError.message
@@ -94,7 +118,7 @@ export default function AddItemPage() {
     }
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
     if (!user) {
@@ -120,7 +144,7 @@ export default function AddItemPage() {
     const itemId = crypto.randomUUID();
 
     try {
-      saveItem({
+      await saveItem({
         id: itemId,
         title: title.trim(),
         category,
@@ -135,7 +159,7 @@ export default function AddItemPage() {
         details: details.trim(),
         telegram: normalizedTelegram,
         ownerId: user.id,
-        ...(imageDataUrl ? { imageDataUrl } : {}),
+        ...(imageDataUrls.length ? { imageDataUrls } : {}),
       });
       router.push(`/item/${itemId}`);
     } catch (saveError) {
@@ -153,7 +177,7 @@ export default function AddItemPage() {
       <main className="foundly-shell container-fluid px-0">
         <SiteHeader active="add" />
         <section className="auth-required-state container">
-          <p>Проверяем демо-аккаунт...</p>
+          <p>Проверяем аккаунт...</p>
         </section>
         <SiteFooter />
       </main>
@@ -171,10 +195,7 @@ export default function AddItemPage() {
             Демо-аккаунт нужен, чтобы сохранить объявление за его автором и
             управлять его статусом.
           </p>
-          <Alert className="demo-alert" severity="info">
-            {authError ||
-              "Регистрация работает локально в этом браузере. Это не серверная авторизация."}
-          </Alert>
+          {authError && <Alert severity="error">{authError}</Alert>}
           <div className="auth-required-actions">
             <Button
               className="detail-primary-button"
@@ -210,10 +231,6 @@ export default function AddItemPage() {
               <h1>{t("form.title")}</h1>
               <p>{t("form.subtitle")}</p>
           </div>
-
-          <Alert className="demo-alert" severity="info">
-            {t("form.demoNotice")}
-          </Alert>
 
           <form className="item-form" onSubmit={handleSubmit}>
             {error && (
@@ -344,14 +361,15 @@ export default function AddItemPage() {
                 <input
                   accept="image/jpeg,image/png,image/webp"
                   onChange={handleImageChange}
+                  multiple
                   type="file"
                 />
-                {imageDataUrl ? (
+                {imageDataUrls.length ? (
                   <span
                     className="upload-preview"
-                    style={{ backgroundImage: `url("${imageDataUrl}")` }}
+                    style={{ backgroundImage: `url("${imageDataUrls[0]}")` }}
                     role="img"
-                    aria-label={`${t("form.photo")}: ${imageName}`}
+                    aria-label={`${t("form.photo")}: ${imageNames.join(", ")}`}
                   />
                 ) : (
                   <span className="upload-icon" aria-hidden="true">
@@ -359,8 +377,8 @@ export default function AddItemPage() {
                   </span>
                 )}
                 <span className="upload-copy">
-                  <strong>{imageName || t("form.addPhoto")}</strong>
-                  <small>{t("form.photoTypes")}</small>
+                  <strong>{imageNames.join(", ") || t("form.addPhoto")}</strong>
+                  <small>JPG, PNG или WebP · до 5 МБ каждое · максимум 3 фото</small>
                 </span>
                 <span className="upload-browse">{t("form.chooseFile")}</span>
               </label>

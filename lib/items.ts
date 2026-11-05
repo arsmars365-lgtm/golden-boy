@@ -1,3 +1,5 @@
+import { getSupabaseClient } from "@/lib/supabase";
+
 export type ItemType = "lost" | "found";
 export type ItemStatus = "searching" | "found" | "returned";
 
@@ -16,7 +18,11 @@ export type Item = {
   details: string;
   telegram?: string;
   imageDataUrl?: string;
+  imageDataUrls?: string[];
   ownerId?: string;
+  ownerUsername?: string;
+  ownerFullName?: string;
+  ownerVerified?: boolean;
 };
 
 export type ItemReport = {
@@ -27,13 +33,15 @@ export type ItemReport = {
 };
 
 export const ITEM_CATEGORIES = [
-  "Электроника",
   "Документы",
+  "Телефон",
   "Ключи",
+  "Наушники",
   "Одежда",
   "Сумки",
-  "Книги",
   "Другое",
+  "Электроника",
+  "Книги",
 ] as const;
 
 export const DEMO_ITEMS: Item[] = [
@@ -123,177 +131,194 @@ export const DEMO_ITEMS: Item[] = [
   },
 ];
 
-export const ITEMS_STORAGE_KEY = "foundly-items-v1";
-const REPORTS_STORAGE_KEY = "foundly-reports-v1";
-const STORAGE_ERROR_PREFIX = "\u0000storage-error:";
-export const SERVER_ITEMS_SNAPSHOT = "\u0000server-snapshot";
+type ItemRow = {
+  id: string;
+  user_id: string;
+  title: string;
+  category: string;
+  type: ItemType;
+  location: string;
+  date: string;
+  photos: string[];
+  status: "active" | "returned" | "hidden";
+  description: string;
+  contact_method: string;
+  created_at: string;
+  profiles: {
+    username: string;
+    full_name: string;
+    is_verified: boolean;
+  } | null;
+};
 
-export function getItemsSnapshot(): string {
-  try {
-    return window.localStorage.getItem(ITEMS_STORAGE_KEY) ?? "[]";
-  } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Хранилище недоступно.";
-    return `${STORAGE_ERROR_PREFIX}${message}`;
+function notifyItemsChanged() {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event("foundly-items-updated"));
   }
 }
 
-export function parseItemsSnapshot(snapshot: string): Item[] {
-  if (snapshot.startsWith(STORAGE_ERROR_PREFIX)) {
-    throw new Error(snapshot.slice(STORAGE_ERROR_PREFIX.length));
-  }
-  if (snapshot === SERVER_ITEMS_SNAPSHOT) return [];
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(snapshot);
-  } catch {
-    throw new Error(
-      "Сохранённые данные повреждены. Очисти данные сайта и попробуй снова.",
-    );
-  }
-
-  if (!Array.isArray(parsed) || !parsed.every(isItem)) {
-    throw new Error("Формат сохранённых данных не распознан.");
-  }
-  return parsed;
-}
-
-export function subscribeToItems(callback: () => void): () => void {
-  window.addEventListener("storage", callback);
-  window.addEventListener("foundly-items-updated", callback);
-  return () => {
-    window.removeEventListener("storage", callback);
-    window.removeEventListener("foundly-items-updated", callback);
+function fromItemRow(row: ItemRow): Item {
+  const { art, symbol } = getItemArt(row.category);
+  return {
+    id: row.id,
+    title: row.title,
+    category: row.category,
+    type: row.type,
+    place: row.location,
+    date: row.date,
+    daysAgo: getDaysAgo(row.date),
+    time: new Intl.DateTimeFormat("ru-RU", {
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(new Date(row.created_at)),
+    status: row.status === "returned" ? "returned" : "searching",
+    art,
+    symbol,
+    details: row.description,
+    telegram: row.contact_method,
+    ...(row.photos[0]
+      ? { imageDataUrl: row.photos[0], imageDataUrls: row.photos }
+      : {}),
+    ownerId: row.user_id,
+    ownerUsername: row.profiles?.username,
+    ownerFullName: row.profiles?.full_name,
+    ownerVerified: row.profiles?.is_verified ?? false,
   };
 }
 
-function notifyItemsChanged() {
-  window.dispatchEvent(new Event("foundly-items-updated"));
-}
+const itemSelection =
+  "id,user_id,title,category,type,location,date,photos,status,description,contact_method,created_at,profiles!items_user_profile_fkey(username,full_name,is_verified)";
 
-function isItem(value: unknown): value is Item {
-  if (!value || typeof value !== "object") return false;
-  const item = value as Record<string, unknown>;
+export async function getStoredItems(): Promise<Item[]> {
+  const { data, error } = await getSupabaseClient()
+    .from("items")
+    .select(itemSelection)
+    .neq("status", "hidden")
+    .order("created_at", { ascending: false });
 
-  return (
-    typeof item.id === "string" &&
-    typeof item.title === "string" &&
-    typeof item.category === "string" &&
-    (item.type === "lost" || item.type === "found") &&
-    typeof item.place === "string" &&
-    typeof item.daysAgo === "number" &&
-    typeof item.time === "string" &&
-    (item.status === "searching" ||
-      item.status === "found" ||
-      item.status === "returned") &&
-    typeof item.art === "string" &&
-    typeof item.symbol === "string" &&
-    typeof item.details === "string" &&
-    (item.date === undefined || typeof item.date === "string") &&
-    (item.telegram === undefined || typeof item.telegram === "string") &&
-    (item.imageDataUrl === undefined || typeof item.imageDataUrl === "string") &&
-    (item.ownerId === undefined || typeof item.ownerId === "string")
-  );
-}
-
-function readArray<T>(
-  key: string,
-  validate: (value: unknown) => value is T,
-): T[] {
-  const storedValue = window.localStorage.getItem(key);
-  if (!storedValue) return [];
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(storedValue);
-  } catch {
-    throw new Error("Сохранённые данные повреждены. Очисти данные сайта и попробуй снова.");
-  }
-
-  if (!Array.isArray(parsed) || !parsed.every(validate)) {
-    throw new Error("Формат сохранённых данных не распознан.");
-  }
-
-  return parsed;
-}
-
-function isReport(value: unknown): value is ItemReport {
-  if (!value || typeof value !== "object") return false;
-  const report = value as Record<string, unknown>;
-
-  return (
-    typeof report.id === "string" &&
-    typeof report.itemId === "string" &&
-    typeof report.reason === "string" &&
-    typeof report.createdAt === "string"
-  );
-}
-
-export function getStoredItems(): Item[] {
-  return readArray(ITEMS_STORAGE_KEY, isItem);
+  if (error) throw new Error(`Не удалось загрузить объявления: ${error.message}`);
+  return (data as unknown as ItemRow[]).map(fromItemRow);
 }
 
 export function getAllItems(storedItems: Item[] = []): Item[] {
   return [...storedItems, ...DEMO_ITEMS];
 }
 
-export function saveItem(item: Item): void {
-  const storedItems = getStoredItems();
-  window.localStorage.setItem(
-    ITEMS_STORAGE_KEY,
-    JSON.stringify([item, ...storedItems]),
-  );
+export async function saveItem(item: Item): Promise<void> {
+  const supabase = getSupabaseClient();
+  const photos: string[] = [];
+  const uploadedPaths: string[] = [];
+
+  try {
+    for (const [index, imageDataUrl] of (item.imageDataUrls ??
+      (item.imageDataUrl ? [item.imageDataUrl] : [])
+    ).entries()) {
+      if (!imageDataUrl.startsWith("data:image/")) {
+        photos.push(imageDataUrl);
+        continue;
+      }
+      const response = await fetch(imageDataUrl);
+      if (!response.ok) throw new Error("Не удалось обработать фотографию.");
+      const blob = await response.blob();
+      const path = `${item.ownerId}/${item.id}-${index}.jpg`;
+      const { error: uploadError } = await supabase.storage
+        .from("item-photos")
+        .upload(path, blob, { contentType: blob.type, upsert: false });
+      if (uploadError) throw new Error(`Не удалось загрузить фотографию: ${uploadError.message}`);
+      uploadedPaths.push(path);
+      photos.push(supabase.storage.from("item-photos").getPublicUrl(path).data.publicUrl);
+    }
+
+    const { error } = await supabase.from("items").insert({
+    id: item.id,
+    title: item.title,
+    category: item.category,
+    type: item.type,
+    location: item.place,
+    date: item.date ?? new Date().toISOString().slice(0, 10),
+    status: item.status === "returned" ? "returned" : "active",
+    description: item.details,
+    contact_method: item.telegram ?? "",
+    photos,
+    user_id: item.ownerId,
+    });
+
+    if (error) throw new Error(`Не удалось сохранить объявление: ${error.message}`);
+  } catch (saveError) {
+    if (uploadedPaths.length) {
+      const { error: cleanupError } = await supabase.storage
+        .from("item-photos")
+        .remove(uploadedPaths);
+      if (cleanupError) {
+        throw new Error(
+          `${saveError instanceof Error ? saveError.message : "Не удалось сохранить объявление."} Также не удалось удалить загруженные фото: ${cleanupError.message}`,
+        );
+      }
+    }
+    throw saveError;
+  }
   notifyItemsChanged();
 }
 
-export function updateStoredItem(
+export async function updateStoredItem(
   id: string,
   ownerId: string,
-  updates: Partial<Item>,
-): Item {
-  const storedItems = getStoredItems();
-  const itemIndex = storedItems.findIndex((item) => item.id === id);
-  if (
-    itemIndex === -1 ||
-    storedItems[itemIndex].ownerId !== ownerId ||
-    !ownerId
-  ) {
-    throw new Error("Изменять можно только своё демо-объявление.");
+  updates: Partial<Pick<Item, "status" | "title" | "category" | "type" | "place" | "date" | "details" | "telegram">>,
+): Promise<Item> {
+  const databaseUpdates: Record<string, string> = {};
+  if (updates.status) {
+    databaseUpdates.status = updates.status === "returned" ? "returned" : "active";
   }
+  if (updates.title !== undefined) databaseUpdates.title = updates.title.trim();
+  if (updates.category !== undefined) databaseUpdates.category = updates.category;
+  if (updates.type !== undefined) databaseUpdates.type = updates.type;
+  if (updates.place !== undefined) databaseUpdates.location = updates.place.trim();
+  if (updates.date !== undefined) databaseUpdates.date = updates.date;
+  if (updates.details !== undefined) databaseUpdates.description = updates.details.trim();
+  if (updates.telegram !== undefined) databaseUpdates.contact_method = updates.telegram.trim();
 
-  const updatedItem = { ...storedItems[itemIndex], ...updates };
-  storedItems[itemIndex] = updatedItem;
-  window.localStorage.setItem(ITEMS_STORAGE_KEY, JSON.stringify(storedItems));
+  const { data, error } = await getSupabaseClient()
+    .from("items")
+    .update(databaseUpdates)
+    .eq("id", id)
+    .eq("user_id", ownerId)
+    .select(itemSelection)
+    .maybeSingle();
+
+  if (error) throw new Error(`Не удалось обновить объявление: ${error.message}`);
+  if (!data) throw new Error("Объявление не найдено или у тебя нет прав на изменение.");
   notifyItemsChanged();
-  return updatedItem;
+  return fromItemRow(data as unknown as ItemRow);
 }
 
-export function deleteStoredItem(id: string, ownerId: string): void {
-  const storedItems = getStoredItems();
-  if (
-    !ownerId ||
-    !storedItems.some((item) => item.id === id && item.ownerId === ownerId)
-  ) {
-    throw new Error("Удалять можно только своё демо-объявление.");
-  }
+export async function deleteStoredItem(id: string, ownerId: string): Promise<void> {
+  const { data, error } = await getSupabaseClient()
+    .from("items")
+    .delete()
+    .eq("id", id)
+    .eq("user_id", ownerId)
+    .select("id")
+    .maybeSingle();
 
-  window.localStorage.setItem(
-    ITEMS_STORAGE_KEY,
-    JSON.stringify(storedItems.filter((item) => item.id !== id)),
-  );
+  if (error) throw new Error(`Не удалось удалить объявление: ${error.message}`);
+  if (!data) throw new Error("Объявление не найдено или у тебя нет прав на удаление.");
   notifyItemsChanged();
 }
 
-export function saveItemReport(itemId: string, reason: string): void {
-  const reports = readArray(REPORTS_STORAGE_KEY, isReport);
-  reports.push({
-    id: crypto.randomUUID(),
-    itemId,
-    reason,
-    createdAt: new Date().toISOString(),
-  });
-  window.localStorage.setItem(REPORTS_STORAGE_KEY, JSON.stringify(reports));
+export async function saveItemReport(
+  itemId: string,
+  reason: string,
+): Promise<void> {
+  const supabase = getSupabaseClient();
+  const { data: userData, error: authError } = await supabase.auth.getUser();
+  if (authError) throw new Error(`Не удалось проверить аккаунт: ${authError.message}`);
+  if (!userData.user) throw new Error("Чтобы отправить жалобу, войди в аккаунт.");
+
+  const { error } = await supabase
+    .from("reports")
+    .insert({ item_id: itemId, reason, user_id: userData.user.id });
+
+  if (error) throw new Error(`Не удалось отправить жалобу: ${error.message}`);
 }
 
 export function getItemArt(category: string): { art: string; symbol: string } {

@@ -117,13 +117,15 @@ type TranslationSet = {
 
 const categoryKeys = [
   "all",
-  "electronics",
   "documents",
+  "phone",
   "keys",
+  "headphones",
   "clothes",
   "bags",
-  "books",
   "other",
+  "electronics",
+  "books",
 ] as const;
 
 const translations: Record<Language, TranslationSet> = {
@@ -189,13 +191,15 @@ const translations: Record<Language, TranslationSet> = {
     language: "Тіл",
     categories: {
       all: "Барлық санаттар",
-      electronics: "Электроника",
       documents: "Құжаттар",
+      phone: "Телефон",
       keys: "Кілттер",
+      headphones: "Құлаққап",
       clothes: "Киім",
       bags: "Сөмкелер",
-      books: "Кітаптар",
       other: "Басқа",
+      electronics: "Электроника",
+      books: "Кітаптар",
     },
   },
   ru: {
@@ -260,13 +264,15 @@ const translations: Record<Language, TranslationSet> = {
     language: "Язык",
     categories: {
       all: "Все категории",
-      electronics: "Электроника",
       documents: "Документы",
+      phone: "Телефон",
       keys: "Ключи",
+      headphones: "Наушники",
       clothes: "Одежда",
       bags: "Сумки",
-      books: "Книги",
       other: "Другое",
+      electronics: "Электроника",
+      books: "Книги",
     },
   },
   en: {
@@ -331,13 +337,15 @@ const translations: Record<Language, TranslationSet> = {
     language: "Language",
     categories: {
       all: "All categories",
-      electronics: "Electronics",
       documents: "Documents",
+      phone: "Phone",
       keys: "Keys",
+      headphones: "Headphones",
       clothes: "Clothing",
       bags: "Bags",
-      books: "Books",
       other: "Other",
+      electronics: "Electronics",
+      books: "Books",
     },
   },
 };
@@ -449,7 +457,9 @@ const localizedDemoItems: Item[] = [
 const categoryKeyByName: Record<string, string> = {
   Электроника: "electronics",
   Документы: "documents",
+  Телефон: "phone",
   Ключи: "keys",
+  Наушники: "headphones",
   Одежда: "clothes",
   Сумки: "bags",
   Книги: "books",
@@ -500,6 +510,7 @@ export default function Home() {
   const [category, setCategory] = useState<string>("all");
   const [timeFilter, setTimeFilter] = useState<TimeFilter>("all");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [visibleCount, setVisibleCount] = useState(12);
   const { items: storedItems, error: storageError } = useStoredItems();
   const today = useTodayDate();
   const items = useMemo(() => getAllItems(storedItems), [storedItems]);
@@ -538,7 +549,10 @@ export default function Home() {
         );
       const matchesType = typeFilter === "all" || item.type === typeFilter;
       const matchesStatus =
-        statusFilter === "all" || item.status === statusFilter;
+        statusFilter === "all" ||
+        (statusFilter === "found"
+          ? item.type === "found"
+          : item.status === statusFilter);
       const itemCategory = localizedItem?.categoryKey ?? categoryKeyByName[item.category];
       const matchesCategory = category === "all" || itemCategory === category;
       const matchesTime =
@@ -555,6 +569,7 @@ export default function Home() {
       );
     });
   }, [category, items, language, query, statusFilter, timeFilter, today, typeFilter]);
+  const visibleItems = filteredItems.slice(0, visibleCount);
 
   function resetFilters() {
     setQuery("");
@@ -622,7 +637,7 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="feed-section container">
+      <section className="feed-section container" id="feed">
         <div className="feed-heading">
           <div>
             <span className="section-kicker">{t.sections.kicker}</span>
@@ -713,7 +728,7 @@ export default function Home() {
 
         {filteredItems.length > 0 ? (
           <div className="row g-4 item-grid">
-            {filteredItems.map((item) => {
+            {visibleItems.map((item) => {
               const localizedItem = localizedDemoItems.find((entry) => entry.id === item.id);
               const title = localizedItem?.title[language] ?? item.title;
               const place = localizedItem?.place[language] ?? item.place;
@@ -766,6 +781,12 @@ export default function Home() {
                           <Pin /> {place}
                         </span>
                       </div>
+                      {item.ownerUsername && (
+                        <span className="item-author">
+                          @{item.ownerUsername}
+                          {item.ownerVerified && <span className="item-verified-dot" aria-label="Подтверждённый пользователь">✓</span>}
+                        </span>
+                      )}
                       <p className="item-description">{details}</p>
                       <div className="item-card-footer">
                         <span className={`status-label ${item.status}`}>
@@ -791,6 +812,14 @@ export default function Home() {
             <p>{t.emptyState.message}</p>
             <Button className="empty-reset" onClick={resetFilters}>
               {t.filters.reset}
+            </Button>
+          </div>
+        )}
+
+        {visibleCount < filteredItems.length && (
+          <div className="feed-load-more">
+            <Button onClick={() => setVisibleCount((count) => count + 12)} variant="outlined">
+              {language === "kk" ? "Тағы көрсету" : language === "en" ? "Load more" : "Показать ещё"}
             </Button>
           </div>
         )}
