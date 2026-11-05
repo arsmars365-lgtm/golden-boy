@@ -10,6 +10,7 @@ export type Item = {
   type: ItemType;
   place: string;
   date?: string;
+  createdAt?: string;
   daysAgo: number;
   time: string;
   status: ItemStatus;
@@ -166,6 +167,7 @@ function fromItemRow(row: ItemRow): Item {
     type: row.type,
     place: row.location,
     date: row.date,
+    createdAt: row.created_at,
     daysAgo: getDaysAgo(row.date),
     time: new Intl.DateTimeFormat("ru-RU", {
       hour: "2-digit",

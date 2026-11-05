@@ -3,6 +3,7 @@
 import Button from "@mui/material/Button";
 import Chip from "@mui/material/Chip";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { DemoNotice } from "@/app/components/SiteHeader";
 import SiteFooter from "@/components/site-footer";
@@ -10,6 +11,8 @@ import SiteHeader from "@/components/site-header";
 import { getAllItems } from "@/lib/items";
 import { useStoredItems, useTodayDate } from "@/lib/use-stored-items";
 import { useLanguage } from "@/components/language-provider";
+import { useDemoAuth } from "@/lib/use-demo-auth";
+import { useFavoriteItems } from "@/lib/use-favorite-items";
 
 type TimeFilter = "all" | "today" | "week";
 type StatusFilter = "all" | "searching" | "found" | "returned";
@@ -504,7 +507,10 @@ function formatItemDate(daysAgo: number, time: string, language: Language) {
 }
 
 export default function Home() {
+  const router = useRouter();
   const { language } = useLanguage();
+  const { user } = useDemoAuth();
+  const { favoriteIds, toggleFavorite } = useFavoriteItems(user?.id ?? null);
   const [query, setQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState<"all" | ItemType>("all");
   const [category, setCategory] = useState<string>("all");
@@ -736,7 +742,7 @@ export default function Home() {
               const itemCategory = localizedItem?.categoryKey ?? categoryKeyByName[item.category];
 
               return (
-                <div className="col-12 col-sm-6 col-lg-4" key={item.id}>
+                <div className="col-12 col-sm-6 col-lg-4 item-card-shell" key={item.id}>
                   <Link
                     className="item-card"
                     href={`/item/${item.id}`}
@@ -801,6 +807,21 @@ export default function Home() {
                       </div>
                     </div>
                   </Link>
+                  <button
+                    aria-label={favoriteIds.includes(item.id) ? `Убрать «${title}» из избранного` : `Добавить «${title}» в избранное`}
+                    aria-pressed={favoriteIds.includes(item.id)}
+                    className={`item-card-favorite${favoriteIds.includes(item.id) ? " is-favorite" : ""}`}
+                    onClick={() => {
+                      if (!user) {
+                        router.push("/login");
+                        return;
+                      }
+                      toggleFavorite(item.id);
+                    }}
+                    type="button"
+                  >
+                    {favoriteIds.includes(item.id) ? "♥" : "♡"}
+                  </button>
                 </div>
               );
             })}

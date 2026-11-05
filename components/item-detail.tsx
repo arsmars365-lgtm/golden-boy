@@ -23,6 +23,9 @@ import {
 import { useStoredItems } from "@/lib/use-stored-items";
 import { useDemoAuth } from "@/lib/use-demo-auth";
 import VerifiedBadge from "@/components/verified-badge";
+import { useFavoriteItems } from "@/lib/use-favorite-items";
+import { getLostItemProgress, getSimilarFoundItems } from "@/lib/item-matching";
+import { useItemNotifications } from "@/lib/use-item-notifications";
 
 function formattedDate(item: Item, language: Language) {
   if (!item.date) {
@@ -44,6 +47,13 @@ export default function ItemDetail({ id }: { id: string }) {
   const router = useRouter();
   const { items: storedItems, error: storageError, isReady } = useStoredItems();
   const { user, isReady: isAuthReady } = useDemoAuth();
+  const { favoriteIds, toggleFavorite, error: favoritesError } = useFavoriteItems(user?.id ?? null);
+  const {
+    isSubscribed,
+    subscribeToItem,
+    unsubscribeFromItem,
+    error: notificationsError,
+  } = useItemNotifications();
   const [actionError, setActionError] = useState("");
   const [reportReason, setReportReason] = useState("");
   const [reportMessage, setReportMessage] = useState("");
@@ -284,13 +294,53 @@ export default function ItemDetail({ id }: { id: string }) {
                 ? t(categoryTranslationKey(item.category)!)
                 : item.category}
             </span>
-            <Button className="share-item-button" onClick={handleShare} variant="outlined">
-              Поделиться <span aria-hidden="true">↗</span>
-            </Button>
+            <div className="detail-quick-actions">
+              <Button
+                aria-pressed={favoriteIds.includes(item.id)}
+                className={`favorite-item-button${favoriteIds.includes(item.id) ? " is-favorite" : ""}`}
+                onClick={() => {
+                  if (!user) {
+                    router.push("/login");
+                    return;
+                  }
+                  toggleFavorite(item.id);
+                }}
+                variant="outlined"
+              >
+                <span aria-hidden="true">{favoriteIds.includes(item.id) ? "♥" : "♡"}</span>
+                {favoriteIds.includes(item.id) ? "В избранном" : "В избранное"}
+              </Button>
+              {item.type === "lost" && item.status !== "returned" && !isExampleItem && (
+                <Button
+                  aria-pressed={isSubscribed(item.id)}
+                  className={`item-subscription-button${isSubscribed(item.id) ? " is-subscribed" : ""}`}
+                  onClick={() => {
+                    if (!user) {
+                      router.push("/login");
+                      return;
+                    }
+                    if (isSubscribed(item.id)) {
+                      unsubscribeFromItem(item.id);
+                      return;
+                    }
+                    if (window.confirm(`Подписаться на новые находки, похожие на «${item.title}»?`)) {
+                      subscribeToItem(item);
+                    }
+                  }}
+                  variant="outlined"
+                >
+                  <span aria-hidden="true">{isSubscribed(item.id) ? "✓" : "♧"}</span>
+                  {isSubscribed(item.id) ? "Уведомления включены" : "Следить за находками"}
+                </Button>
+              )}
+              <Button className="share-item-button" onClick={handleShare} variant="outlined">
+                Поделиться <span aria-hidden="true">↗</span>
+              </Button>
+            </div>
 
-            {(storageError || actionError) && (
+            {(storageError || actionError || favoritesError || notificationsError) && (
               <Alert className="detail-alert" severity="error">
-                {storageError || actionError}
+                {storageError || actionError || favoritesError || notificationsError}
               </Alert>
             )}
             {reportMessage && (
@@ -318,6 +368,36 @@ export default function ItemDetail({ id }: { id: string }) {
                 <h2>{t("detail.description")}</h2>
                 <p>{item.details || t("detail.noDescription")}</p>
             </div>
+
+            {isOwnItem && item.type === "lost" && (() => {
+              const matches = getSimilarFoundItems(item, storedItems);
+              const currentStep = getLostItemProgress(item, matches.length > 0);
+              const steps = ["Объявление опубликовано", "Ищем совпадения", "Есть похожая находка", "Вещь возвращена"];
+              return (
+                <section className="item-progress-panel" aria-label="Прогресс поиска">
+                  <div className="account-section-heading">
+                    <div><span className="section-kicker">ПРОГРЕСС ПОИСКА</span><h2>Путь вашей вещи</h2></div>
+                    <span className="progress-current-label">{steps[currentStep]}</span>
+                  </div>
+                  <div className="item-progress-steps">
+                    {steps.map((step, index) => (
+                      <div className={`item-progress-step${index <= currentStep ? " is-complete" : ""}${index === currentStep ? " is-current" : ""}`} key={step}>
+                        <span className="item-progress-dot">{index < currentStep ? "✓" : index + 1}</span>
+                        <small>{step}</small>
+                      </div>
+                    ))}
+                  </div>
+                  {matches.length > 0 && (
+                    <div className="item-match-hint">
+                      <span aria-hidden="true">✦</span>
+                      <p>Нашли {matches.length === 1 ? "похожее объявление" : "похожие объявления"} в кампусе.</p>
+                      <Link href="/profile?tab=notifications">Посмотреть совпадения →</Link>
+                    </div>
+                  )}
+                  {item.status === "returned" && <p className="progress-success-note">Поиск завершён: объявление отмечено как возвращённое.</p>}
+                </section>
+              );
+            })()}
 
             {validTelegramUsername ? (
               <div className="detail-contact">
