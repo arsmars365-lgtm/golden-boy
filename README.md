@@ -10,7 +10,7 @@ npm ci
 npm run dev
 ```
 
-Открой [http://localhost:3000](http://localhost:3000).
+Откройте [http://localhost:3000](http://localhost:3000).
 
 Для запуска production-сборки выполни `npm run build`, затем `npm run start`.
 
