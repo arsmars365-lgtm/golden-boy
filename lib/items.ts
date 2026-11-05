@@ -17,7 +17,6 @@ export type Item = {
   art: string;
   symbol: string;
   details: string;
-  telegram?: string;
   imageDataUrl?: string;
   imageDataUrls?: string[];
   ownerId?: string;
@@ -143,7 +142,6 @@ type ItemRow = {
   photos: string[];
   status: "active" | "returned" | "hidden";
   description: string;
-  contact_method: string;
   created_at: string;
   profiles: {
     username: string;
@@ -177,7 +175,6 @@ function fromItemRow(row: ItemRow): Item {
     art,
     symbol,
     details: row.description,
-    telegram: row.contact_method,
     ...(row.photos[0]
       ? { imageDataUrl: row.photos[0], imageDataUrls: row.photos }
       : {}),
@@ -189,7 +186,7 @@ function fromItemRow(row: ItemRow): Item {
 }
 
 const itemSelection =
-  "id,user_id,title,category,type,location,date,photos,status,description,contact_method,created_at,profiles!items_user_profile_fkey(username,full_name,is_verified)";
+  "id,user_id,title,category,type,location,date,photos,status,description,created_at,profiles!items_user_profile_fkey(username,full_name,is_verified)";
 
 export async function getStoredItems(): Promise<Item[]> {
   const { data, error } = await getSupabaseClient()
@@ -240,7 +237,6 @@ export async function saveItem(item: Item): Promise<void> {
     date: item.date ?? new Date().toISOString().slice(0, 10),
     status: item.status === "returned" ? "returned" : "active",
     description: item.details,
-    contact_method: item.telegram ?? "",
     photos,
     user_id: item.ownerId,
     });
@@ -265,7 +261,7 @@ export async function saveItem(item: Item): Promise<void> {
 export async function updateStoredItem(
   id: string,
   ownerId: string,
-  updates: Partial<Pick<Item, "status" | "title" | "category" | "type" | "place" | "date" | "details" | "telegram">>,
+  updates: Partial<Pick<Item, "status" | "title" | "category" | "type" | "place" | "date" | "details">>,
 ): Promise<Item> {
   const databaseUpdates: Record<string, string> = {};
   if (updates.status) {
@@ -277,8 +273,6 @@ export async function updateStoredItem(
   if (updates.place !== undefined) databaseUpdates.location = updates.place.trim();
   if (updates.date !== undefined) databaseUpdates.date = updates.date;
   if (updates.details !== undefined) databaseUpdates.description = updates.details.trim();
-  if (updates.telegram !== undefined) databaseUpdates.contact_method = updates.telegram.trim();
-
   const { data, error } = await getSupabaseClient()
     .from("items")
     .update(databaseUpdates)
@@ -342,9 +336,27 @@ export function getItemArt(category: string): { art: string; symbol: string } {
   }
 }
 
-export function formatItemDate(daysAgo: number, time: string): string {
-  if (daysAgo === 0) return `Сегодня, ${time}`;
-  if (daysAgo === 1) return `Вчера, ${time}`;
+export function formatItemDate(
+  daysAgo: number,
+  time: string,
+  language: "ru" | "kk" | "en" = "ru",
+): string {
+  if (daysAgo === 0) {
+    return language === "en"
+      ? `Today, ${time}`
+      : language === "kk"
+        ? `Бүгін, ${time}`
+        : `Сегодня, ${time}`;
+  }
+  if (daysAgo === 1) {
+    return language === "en"
+      ? `Yesterday, ${time}`
+      : language === "kk"
+        ? `Кеше, ${time}`
+        : `Вчера, ${time}`;
+  }
+  if (language === "en") return `${daysAgo} day${daysAgo > 1 ? "s" : ""} ago, ${time}`;
+  if (language === "kk") return `${daysAgo} күн бұрын, ${time}`;
   return `${daysAgo} ${daysAgo < 5 ? "дня" : "дней"} назад, ${time}`;
 }
 

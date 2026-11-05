@@ -2,15 +2,17 @@
 
 import Link from "next/link";
 import { useLanguage } from "@/components/language-provider";
+import { useFavorites } from "@/components/favorites-provider";
 import HeaderAccount from "@/components/header-account";
 import ThemeToggle from "@/components/theme-toggle";
 
 type SiteHeaderProps = {
-  active?: "feed" | "add" | "item" | "about" | "none";
+  active?: "feed" | "add" | "item" | "about" | "favorites" | "messages" | "none";
 };
 
 export default function SiteHeader({ active = "none" }: SiteHeaderProps) {
   const { language, setLanguage, t } = useLanguage();
+  const { favoriteIds } = useFavorites();
 
   return (
     <header className="site-header">
@@ -27,6 +29,13 @@ export default function SiteHeader({ active = "none" }: SiteHeaderProps) {
             href="/"
           >
             {t("nav.feed")}
+          </Link>
+          <Link
+            aria-current={active === "favorites" ? "page" : undefined}
+            className={`nav-link ${active === "favorites" ? "active" : ""}`}
+            href="/favorites"
+          >
+            {t("nav.favorites")} <span className="favorites-count">({favoriteIds.length})</span>
           </Link>
           <Link
             aria-current={active === "about" ? "page" : undefined}
@@ -66,6 +75,7 @@ export default function SiteHeader({ active = "none" }: SiteHeaderProps) {
         <Link href="/#feed" aria-label="Поиск"><span aria-hidden="true">⌕</span><small>Поиск</small></Link>
         <Link href="/add" aria-current={active === "add" ? "page" : undefined} aria-label="Добавить"><span aria-hidden="true">＋</span><small>Добавить</small></Link>
         <Link href="/about" aria-current={active === "about" ? "page" : undefined} aria-label="О проекте"><span aria-hidden="true">ⓘ</span><small>О проекте</small></Link>
+        <Link href="/messages" aria-current={active === "messages" ? "page" : undefined} aria-label={t("nav.messages")}><span aria-hidden="true">✉</span><small>{t("nav.messages")}</small></Link>
         <Link href="/profile" aria-label="Профиль"><span aria-hidden="true">◉</span><small>Профиль</small></Link>
       </nav>
     </header>
