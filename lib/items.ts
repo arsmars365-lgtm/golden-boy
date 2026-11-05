@@ -342,9 +342,27 @@ export function getItemArt(category: string): { art: string; symbol: string } {
   }
 }
 
-export function formatItemDate(daysAgo: number, time: string): string {
-  if (daysAgo === 0) return `Сегодня, ${time}`;
-  if (daysAgo === 1) return `Вчера, ${time}`;
+export function formatItemDate(
+  daysAgo: number,
+  time: string,
+  language: "ru" | "kk" | "en" = "ru",
+): string {
+  if (daysAgo === 0) {
+    return language === "en"
+      ? `Today, ${time}`
+      : language === "kk"
+        ? `Бүгін, ${time}`
+        : `Сегодня, ${time}`;
+  }
+  if (daysAgo === 1) {
+    return language === "en"
+      ? `Yesterday, ${time}`
+      : language === "kk"
+        ? `Кеше, ${time}`
+        : `Вчера, ${time}`;
+  }
+  if (language === "en") return `${daysAgo} day${daysAgo > 1 ? "s" : ""} ago, ${time}`;
+  if (language === "kk") return `${daysAgo} күн бұрын, ${time}`;
   return `${daysAgo} ${daysAgo < 5 ? "дня" : "дней"} назад, ${time}`;
 }
 

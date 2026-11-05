@@ -2,15 +2,17 @@
 
 import Link from "next/link";
 import { useLanguage } from "@/components/language-provider";
+import { useFavorites } from "@/components/favorites-provider";
 import HeaderAccount from "@/components/header-account";
 import ThemeToggle from "@/components/theme-toggle";
 
 type SiteHeaderProps = {
-  active?: "feed" | "add" | "item" | "about" | "none";
+  active?: "feed" | "add" | "item" | "about" | "favorites" | "none";
 };
 
 export default function SiteHeader({ active = "none" }: SiteHeaderProps) {
   const { language, setLanguage, t } = useLanguage();
+  const { favoriteIds } = useFavorites();
 
   return (
     <header className="site-header">
@@ -27,6 +29,13 @@ export default function SiteHeader({ active = "none" }: SiteHeaderProps) {
             href="/"
           >
             {t("nav.feed")}
+          </Link>
+          <Link
+            aria-current={active === "favorites" ? "page" : undefined}
+            className={`nav-link ${active === "favorites" ? "active" : ""}`}
+            href="/favorites"
+          >
+            {t("nav.favorites")} <span className="favorites-count">({favoriteIds.length})</span>
           </Link>
           <Link
             aria-current={active === "about" ? "page" : undefined}

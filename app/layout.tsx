@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { FavoritesProvider } from "@/components/favorites-provider";
 import { LanguageProvider } from "@/components/language-provider";
 import { ItemNotificationsProvider } from "@/lib/use-item-notifications";
 import "./globals.css";
@@ -28,7 +29,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="min-h-full flex flex-col">
         <ItemNotificationsProvider>
-          <LanguageProvider>{children}</LanguageProvider>
+          <LanguageProvider>
+            <FavoritesProvider>{children}</FavoritesProvider>
+          </LanguageProvider>
         </ItemNotificationsProvider>
       </body>
     </html>
