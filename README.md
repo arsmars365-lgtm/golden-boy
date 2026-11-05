@@ -41,7 +41,6 @@ npm run dev
 ## Проверки
 
 ```bash
-npm run lint
-npm run typecheck
+npm run check
 npm run build
 ```
