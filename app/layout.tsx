@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { Geist, Geist_Mono } from "next/font/google";
 import { FavoritesProvider } from "@/components/favorites-provider";
 import { LanguageProvider } from "@/components/language-provider";
+import RouteScrollToTop from "@/components/route-scroll-to-top";
 import { ItemNotificationsProvider } from "@/lib/use-item-notifications";
 import "./globals.css";
 
@@ -26,12 +27,16 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html
       lang="ru"
+      data-scroll-behavior="smooth"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
         <ItemNotificationsProvider>
           <LanguageProvider>
-            <FavoritesProvider>{children}</FavoritesProvider>
+            <FavoritesProvider>
+              <RouteScrollToTop />
+              {children}
+            </FavoritesProvider>
           </LanguageProvider>
         </ItemNotificationsProvider>
       </body>
