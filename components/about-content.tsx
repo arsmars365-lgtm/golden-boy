@@ -1,9 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import SiteFooter from "@/components/site-footer";
 import SiteHeader from "@/components/site-header";
-import { useStoredItems } from "@/lib/use-stored-items";
 
 const faq = [
   {
@@ -29,12 +27,6 @@ const faq = [
 ];
 
 export default function AboutContent() {
-  const { items, error, isReady } = useStoredItems();
-  const returnedCount = items.filter((item) => item.status === "returned").length;
-  const foundCount = items.filter(
-    (item) => item.type === "found" || item.status === "returned",
-  ).length;
-
   return (
     <main className="foundly-shell container-fluid px-0">
       <SiteHeader active="about" />
@@ -46,22 +38,7 @@ export default function AboutContent() {
             Foundly — университетская доска объявлений, которая помогает
             студентам сообщать о потерянных и найденных вещах.
           </p>
-          <Link className="about-primary-link" href="/">
-            Открыть ленту <span aria-hidden="true">→</span>
-          </Link>
         </div>
-
-        <section className="about-stats" aria-label="Статистика объявлений">
-          <article>
-            <strong>{isReady && !error ? foundCount : "—"}</strong>
-            <span>найденных вещей</span>
-          </article>
-          <article>
-            <strong>{isReady && !error ? returnedCount : "—"}</strong>
-            <span>возвращено владельцам</span>
-          </article>
-          {error && <p role="status">{error}</p>}
-        </section>
 
         <section className="about-section">
           <span className="section-kicker">ТРИ ПРОСТЫХ ШАГА</span>
@@ -104,7 +81,6 @@ export default function AboutContent() {
             <h2>Мы поможем разобраться.</h2>
             <p>По вопросам работы сервиса обратитесь в студенческий офис или деканат вашего университета.</p>
           </div>
-          <Link href="/add">Опубликовать объявление <span aria-hidden="true">→</span></Link>
         </section>
       </section>
       <SiteFooter />

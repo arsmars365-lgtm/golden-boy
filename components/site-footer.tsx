@@ -9,7 +9,6 @@ export default function SiteFooter() {
       <Link className="footer-brand" href="/">
         foundly<span>.</span>
       </Link>
-      <span>{t("footer.description")}</span>
       <Link href="/about">{t("nav.about")}</Link>
     </footer>
   );

@@ -1,7 +1,8 @@
 "use client";
 
 import Button from "@mui/material/Button";
-import { useMemo, useState } from "react";
+import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
 import { DemoNotice } from "@/app/components/SiteHeader";
 import { useFavorites } from "@/components/favorites-provider";
 import ListingCard from "@/components/listing-card";
@@ -14,12 +15,6 @@ import { useLanguage } from "@/components/language-provider";
 type TimeFilter = "all" | "today" | "week";
 type StatusFilter = "all" | "searching" | "found" | "returned";
 
-const statusLabels: Record<Exclude<StatusFilter, "all">, string> = {
-  searching: "Ищется",
-  found: "Найдено",
-  returned: "Возвращено",
-};
-
 function isStatusFilter(value: string): value is StatusFilter {
   return (
     value === "all" ||
@@ -31,6 +26,9 @@ function isStatusFilter(value: string): value is StatusFilter {
 
 type Language = "kk" | "ru" | "en";
 type ItemType = "lost" | "found";
+type PaginationEntry = number | "start-ellipsis" | "end-ellipsis";
+
+const ITEMS_PER_PAGE = 6;
 
 type TextEntry = {
   ru: string;
@@ -60,18 +58,14 @@ type TranslationSet = {
     publish: string;
   };
   hero: {
-    eyebrow: string;
     title: string;
-    titleAccent: string;
-    describe: string;
-    note: string;
-    noteStrong: string;
     searchPlaceholder: string;
-    searchHint: string;
     searchButton: string;
-    categoryLabel: string;
+    reportFound: string;
+    reportLost: string;
   };
   filters: {
+    categoryLabel: string;
     allCategories: string;
     allTypes: string;
     lost: string;
@@ -79,19 +73,28 @@ type TranslationSet = {
     today: string;
     week: string;
     allTime: string;
+    open: string;
+    title: string;
+    close: string;
+    typeLabel: string;
+    dateLabel: string;
+    statusLabel: string;
+    anyStatus: string;
+    searching: string;
+    foundStatus: string;
+    returned: string;
     reset: string;
     resultsFound: string;
     resultSingular: string;
     resultPlural: string;
   };
   sections: {
-    kicker: string;
     title: string;
-    subtitle: string;
-    community: string;
-    bottomTitle: string;
-    bottomText: string;
-    publishFinding: string;
+  };
+  pagination: {
+    previous: string;
+    next: string;
+    label: string;
   };
   card: {
     found: string;
@@ -102,10 +105,6 @@ type TranslationSet = {
     more: string;
     addFavorite: string;
     inFavorites: string;
-  };
-  footer: {
-    about: string;
-    description: string;
   };
   emptyState: {
     message: string;
@@ -139,18 +138,14 @@ const translations: Record<Language, TranslationSet> = {
       publish: "Елдеді жариялау",
     },
     hero: {
-      eyebrow: "Кампус қауымдастығы",
-      title: "Жоғалттыңыз ба",
-      titleAccent: "Немесе таптыңыз ба?",
-      describe: "Заттарды иелеріне қайта оралтуға көмектесеміз.",
-      note: "Бір кампус —",
-      noteStrong: "көптеген жақсы оқиғалар",
+      title: "Жоғалттыңыз ба, әлде таптыңыз ба?",
       searchPlaceholder: "Не іздеп жатырмыз? Мысалы, құлаққап",
-      searchHint: "Атын енгізіңіз немесе санат таңдаңыз",
       searchButton: "Затты табу",
-      categoryLabel: "Санат",
+      reportFound: "Табылған зат туралы хабарлау",
+      reportLost: "Жоғалған зат туралы хабарлау",
     },
     filters: {
+      categoryLabel: "Санат",
       allCategories: "Барлық санаттар",
       allTypes: "Барлық хабарламалар",
       lost: "Жоғалған",
@@ -158,19 +153,28 @@ const translations: Record<Language, TranslationSet> = {
       today: "Бүгін",
       week: "Апта",
       allTime: "Барлық уақыт",
+      open: "Сүзгі",
+      title: "Хабарландыруларды сүзу",
+      close: "Дайын",
+      typeLabel: "Хабарландыру түрі",
+      dateLabel: "Жарияланған күні",
+      statusLabel: "Хабарландыру күйі",
+      anyStatus: "Кез келген күй",
+      searching: "Ізделуде",
+      foundStatus: "Табылды",
+      returned: "Қайтарылды",
       reset: "Фильтрлерді қалпына келтіру",
       resultsFound: "Табылды",
       resultSingular: "хабарлама",
       resultPlural: "хабарлама",
     },
     sections: {
-      kicker: "БІЗ БІРГЕ ТАБЫМЫЗ",
-      title: "Жаңа хабарламалар",
-      subtitle: "Біздің кампус ішінде ізделіп, табылған заттар",
-      community: "Қауымдастық күн сайын көмектеседі",
-      bottomTitle: "Мұнда маңызды зат бар ма?",
-      bottomText: "Сіздің табылған зат басқа адамның күнін жақсарта алады.",
-      publishFinding: "Табылған затты жариялау",
+      title: "Хабарландырулар",
+    },
+    pagination: {
+      previous: "Артқа",
+      next: "Алға",
+      label: "Хабарландыру беттері",
     },
     card: {
       found: "ТАБЫЛДЫ",
@@ -181,10 +185,6 @@ const translations: Record<Language, TranslationSet> = {
       more: "Толығырақ",
       addFavorite: "Таңдаулыларға",
       inFavorites: "Таңдаулыларда",
-    },
-    footer: {
-      about: "Жоба туралы",
-      description: "Адамдарға және табылуға тиіс заттарға арналған.",
     },
     emptyState: {
       message: "Сұранысты өзгертіп немесе фильтрлерді қайта орнатыңыз.",
@@ -214,18 +214,14 @@ const translations: Record<Language, TranslationSet> = {
       publish: "Разместить объявление",
     },
     hero: {
-      eyebrow: "Сообщество кампуса",
       title: "Потерял или нашёл?",
-      titleAccent: "Ты в нужном месте.",
-      describe: "Помогаем вещам возвращаться к своим людям.",
-      note: "Один кампус —",
-      noteStrong: "много добрых историй",
       searchPlaceholder: "Что ищем? Например, наушники",
-      searchHint: "Поиск по названию или выбери категорию",
       searchButton: "Найти вещь",
-      categoryLabel: "Категория",
+      reportFound: "Заявить о находке",
+      reportLost: "Заявить о пропаже",
     },
     filters: {
+      categoryLabel: "Категория",
       allCategories: "Все категории",
       allTypes: "Все объявления",
       lost: "Потеряли",
@@ -233,19 +229,28 @@ const translations: Record<Language, TranslationSet> = {
       today: "Сегодня",
       week: "Неделя",
       allTime: "Всё время",
+      open: "Фильтр",
+      title: "Фильтры объявлений",
+      close: "Готово",
+      typeLabel: "Тип объявления",
+      dateLabel: "Дата публикации",
+      statusLabel: "Статус объявления",
+      anyStatus: "Любой статус",
+      searching: "Ищется",
+      foundStatus: "Найдено",
+      returned: "Возвращено",
       reset: "Сбросить фильтры",
       resultsFound: "Найдено",
       resultSingular: "объявление",
       resultPlural: "объявлений",
     },
     sections: {
-      kicker: "НАЙДЁМ ВМЕСТЕ",
-      title: "Свежие объявления",
-      subtitle: "Вещи, которые ищут и уже нашли в нашем кампусе",
-      community: "Сообщество помогает каждый день",
-      bottomTitle: "Нашёл что-то важное?",
-      bottomText: "Твоя находка может сделать чей-то день лучше.",
-      publishFinding: "Опубликовать находку",
+      title: "Объявления",
+    },
+    pagination: {
+      previous: "Назад",
+      next: "Вперёд",
+      label: "Страницы объявлений",
     },
     card: {
       found: "НАЙДЕНО",
@@ -256,10 +261,6 @@ const translations: Record<Language, TranslationSet> = {
       more: "Подробнее",
       addFavorite: "В избранное",
       inFavorites: "В избранном",
-    },
-    footer: {
-      about: "О проекте",
-      description: "Создано для людей и вещей, которые должны найтись.",
     },
     emptyState: {
       message: "Попробуй изменить запрос или сбросить фильтры.",
@@ -289,18 +290,14 @@ const translations: Record<Language, TranslationSet> = {
       publish: "Post an ad",
     },
     hero: {
-      eyebrow: "Campus community",
-      title: "Lost something?",
-      titleAccent: "Or found something? You’re in the right place.",
-      describe: "We help belongings find their people again.",
-      note: "One campus —",
-      noteStrong: "many good stories",
+      title: "Lost or found something?",
       searchPlaceholder: "What are we looking for? For example, headphones",
-      searchHint: "Search by name or choose a category",
       searchButton: "Find item",
-      categoryLabel: "Category",
+      reportFound: "Report a found item",
+      reportLost: "Report a lost item",
     },
     filters: {
+      categoryLabel: "Category",
       allCategories: "All categories",
       allTypes: "All listings",
       lost: "Lost",
@@ -308,19 +305,28 @@ const translations: Record<Language, TranslationSet> = {
       today: "Today",
       week: "Week",
       allTime: "All time",
+      open: "Filters",
+      title: "Listing filters",
+      close: "Done",
+      typeLabel: "Listing type",
+      dateLabel: "Date posted",
+      statusLabel: "Listing status",
+      anyStatus: "Any status",
+      searching: "Searching",
+      foundStatus: "Found",
+      returned: "Returned",
       reset: "Reset filters",
       resultsFound: "Found",
       resultSingular: "listing",
       resultPlural: "listings",
     },
     sections: {
-      kicker: "LET'S FIND IT TOGETHER",
-      title: "Recent listings",
-      subtitle: "Items being searched for and already found around campus",
-      community: "The community helps every day",
-      bottomTitle: "Found something important?",
-      bottomText: "Your find could make someone’s day better.",
-      publishFinding: "Publish a find",
+      title: "Listings",
+    },
+    pagination: {
+      previous: "Previous",
+      next: "Next",
+      label: "Listing pages",
     },
     card: {
       found: "FOUND",
@@ -331,10 +337,6 @@ const translations: Record<Language, TranslationSet> = {
       more: "More details",
       addFavorite: "Save to favorites",
       inFavorites: "In favorites",
-    },
-    footer: {
-      about: "About",
-      description: "Built for people and the things that should be found.",
     },
     emptyState: {
       message: "Try changing the search or resetting the filters.",
@@ -490,7 +492,8 @@ export default function Home() {
   const [category, setCategory] = useState<string>("all");
   const [timeFilter, setTimeFilter] = useState<TimeFilter>("all");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
-  const [visibleCount, setVisibleCount] = useState(12);
+  const [isFilterDialogOpen, setIsFilterDialogOpen] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
   const { items: storedItems, error: storageError } = useStoredItems();
   const {
     favoriteIds,
@@ -501,6 +504,19 @@ export default function Home() {
   const items = useMemo(() => getAllItems(storedItems), [storedItems]);
 
   const t = translations[language];
+  const activeFilterCount = Number(category !== "all") +
+    Number(typeFilter !== "all") +
+    Number(timeFilter !== "all") +
+    Number(statusFilter !== "all");
+
+  useEffect(() => {
+    if (!isFilterDialogOpen) return;
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setIsFilterDialogOpen(false);
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isFilterDialogOpen]);
 
   const categoryOptions = categoryKeys.map((key) => ({
     value: key,
@@ -554,7 +570,27 @@ export default function Home() {
       );
     });
   }, [category, items, language, query, statusFilter, timeFilter, today, typeFilter]);
-  const visibleItems = filteredItems.slice(0, visibleCount);
+  const pageCount = Math.ceil(filteredItems.length / ITEMS_PER_PAGE);
+  const activePage = Math.min(currentPage, Math.max(pageCount, 1));
+  const visibleItems = filteredItems.slice(
+    (activePage - 1) * ITEMS_PER_PAGE,
+    activePage * ITEMS_PER_PAGE,
+  );
+  const firstPageNumber = Math.max(2, activePage - 1);
+  const lastPageNumber = Math.min(pageCount - 1, activePage + 1);
+  const pageEntries: PaginationEntry[] =
+    pageCount <= 5
+      ? Array.from({ length: pageCount }, (_, index) => index + 1)
+      : [
+          1,
+          ...(firstPageNumber > 2 ? ["start-ellipsis" as const] : []),
+          ...Array.from(
+            { length: Math.max(0, lastPageNumber - firstPageNumber + 1) },
+            (_, index) => firstPageNumber + index,
+          ),
+          ...(lastPageNumber < pageCount - 1 ? ["end-ellipsis" as const] : []),
+          pageCount,
+        ];
 
   function resetFilters() {
     setQuery("");
@@ -562,6 +598,15 @@ export default function Home() {
     setCategory("all");
     setTimeFilter("all");
     setStatusFilter("all");
+    setCurrentPage(1);
+  }
+
+  function goToPage(page: number) {
+    setCurrentPage(page);
+    document.getElementById("feed")?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
   }
 
   return (
@@ -571,122 +616,201 @@ export default function Home() {
       <section className="hero-section">
         <div className="container hero-content">
           <div className="hero-copy">
-            <span className="eyebrow">
-              <span className="eyebrow-dot" /> {t.hero.eyebrow}
-            </span>
-            <h1>
-              {t.hero.title}
-              <br />
-              <span>{t.hero.titleAccent}</span>
-            </h1>
-            <p>
-              {t.hero.describe}
-              <br className="desktop-break" />
-            </p>
+            <h1>{t.hero.title}</h1>
           </div>
-          <div className="hero-note">
-            <span className="note-icon" aria-hidden="true">✳</span>
-            <span>
-              <strong>{t.hero.note}</strong>
-              <br />
-              {t.hero.noteStrong}
-            </span>
+          <div className="report-actions">
+            <Link className="report-action report-action-found" href="/report/found">
+              <svg aria-hidden="true" fill="none" viewBox="0 0 24 24">
+                <circle cx="10.8" cy="10.8" r="6.8" />
+                <path d="m16 16 4.2 4.2" />
+              </svg>
+              <span>{t.hero.reportFound}</span>
+            </Link>
+            <Link className="report-action report-action-lost" href="/report/lost">
+              <svg aria-hidden="true" fill="none" viewBox="0 0 24 24">
+                <path d="M10.3 3.8 2.4 17.4A1.8 1.8 0 0 0 4 20.1h16a1.8 1.8 0 0 0 1.6-2.7L13.7 3.8a2 2 0 0 0-3.4 0Z" />
+                <path d="M12 9v4.5M12 17h.01" />
+              </svg>
+              <span>{t.hero.reportLost}</span>
+            </Link>
           </div>
           <form className="search-panel" onSubmit={(event) => event.preventDefault()}>
             <label className="search-field">
               <Magnifier />
-              <span className="visually-hidden">{t.hero.categoryLabel}</span>
+              <span className="visually-hidden">{t.hero.searchPlaceholder}</span>
               <input
                 type="search"
                 placeholder={t.hero.searchPlaceholder}
                 value={query}
-                onChange={(event) => setQuery(event.target.value)}
+                onChange={(event) => {
+                  setQuery(event.target.value);
+                  setCurrentPage(1);
+                }}
               />
-            </label>
-            <label className="select-field">
-              <span className="visually-hidden">{t.hero.categoryLabel}</span>
-              <select value={category} onChange={(event) => setCategory(event.target.value)}>
-                {categoryOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
             </label>
             <Button className="search-button" type="submit" variant="contained">
               {t.hero.searchButton}
             </Button>
           </form>
-          <p className="search-hint">{t.hero.searchHint}</p>
         </div>
       </section>
 
       <section className="feed-section container" id="feed">
         <div className="feed-heading">
-          <div>
-            <span className="section-kicker">{t.sections.kicker}</span>
-            <h2>{t.sections.title}</h2>
-            <p>{t.sections.subtitle}</p>
-          </div>
-          <div className="community-count">
-            <span className="online-dot" />
-            <span>{t.sections.community}</span>
-          </div>
+          <h2>{t.sections.title}</h2>
+          <button
+            aria-expanded={isFilterDialogOpen}
+            aria-haspopup="dialog"
+            aria-label={t.filters.open}
+            className="filter-open-button"
+            onClick={() => setIsFilterDialogOpen(true)}
+            type="button"
+          >
+            <svg aria-hidden="true" fill="none" viewBox="0 0 24 24">
+              <path d="M4 7h16M7 12h10m-7 5h4" />
+            </svg>
+            {t.filters.open}
+            {activeFilterCount > 0 && (
+              <span aria-hidden="true" className="filter-active-count">
+                {activeFilterCount}
+              </span>
+            )}
+          </button>
         </div>
         <DemoNotice />
 
-        <div className="filter-toolbar">
-          <div className="type-tabs" role="group" aria-label="Type filter">
-            {([
-              ["all", t.filters.allTypes],
-              ["lost", t.filters.lost],
-              ["found", t.filters.found],
-            ] as const).map(([value, label]) => (
-              <button
-                className={`type-tab ${typeFilter === value ? "selected" : ""}`}
-                key={value}
-                onClick={() => setTypeFilter(value)}
-                type="button"
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-          <div className="date-filters" role="group" aria-label="Time filters">
-            {([
-              ["today", t.filters.today],
-              ["week", t.filters.week],
-              ["all", t.filters.allTime],
-            ] as const).map(([value, label]) => (
-              <button
-                className={`date-filter ${timeFilter === value ? "selected" : ""}`}
-                key={value}
-                onClick={() => setTimeFilter(value)}
-                type="button"
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-          <label className="status-filter">
-            <span className="visually-hidden">Статус объявления</span>
-            <select
-              onChange={(event) => {
-                if (isStatusFilter(event.target.value)) {
-                  setStatusFilter(event.target.value);
-                }
-              }}
-              value={statusFilter}
+        {isFilterDialogOpen && (
+          <div
+            className="filter-dialog-backdrop"
+            onClick={(event) => {
+              if (event.target === event.currentTarget) {
+                setIsFilterDialogOpen(false);
+              }
+            }}
+          >
+            <section
+              aria-labelledby="filter-dialog-title"
+              aria-modal="true"
+              className="filter-dialog"
+              role="dialog"
             >
-              <option value="all">Любой статус</option>
-              {Object.entries(statusLabels).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
+              <header className="filter-dialog-header">
+                <h2 id="filter-dialog-title">{t.filters.title}</h2>
+                <button
+                  aria-label={t.filters.close}
+                  className="filter-dialog-close"
+                  onClick={() => setIsFilterDialogOpen(false)}
+                  type="button"
+                >
+                  ×
+                </button>
+              </header>
+              <div className="filter-dialog-content">
+                <label className="status-filter filter-category">
+                  <span>{t.filters.categoryLabel}</span>
+                  <select
+                    onChange={(event) => {
+                      setCategory(event.target.value);
+                      setCurrentPage(1);
+                    }}
+                    value={category}
+                  >
+                    {categoryOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <fieldset>
+                  <legend>{t.filters.typeLabel}</legend>
+                  <div className="type-tabs" role="group">
+                    {([
+                      ["all", t.filters.allTypes],
+                      ["lost", t.filters.lost],
+                      ["found", t.filters.found],
+                    ] as const).map(([value, label]) => (
+                      <button
+                        aria-pressed={typeFilter === value}
+                        className={`type-tab ${typeFilter === value ? "selected" : ""}`}
+                        key={value}
+                        onClick={() => {
+                          setTypeFilter(value);
+                          setCurrentPage(1);
+                        }}
+                        type="button"
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </fieldset>
+                <fieldset>
+                  <legend>{t.filters.dateLabel}</legend>
+                  <div className="date-filters" role="group">
+                    {([
+                      ["today", t.filters.today],
+                      ["week", t.filters.week],
+                      ["all", t.filters.allTime],
+                    ] as const).map(([value, label]) => (
+                      <button
+                        aria-pressed={timeFilter === value}
+                        className={`date-filter ${timeFilter === value ? "selected" : ""}`}
+                        key={value}
+                        onClick={() => {
+                          setTimeFilter(value);
+                          setCurrentPage(1);
+                        }}
+                        type="button"
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </fieldset>
+                <label className="status-filter">
+                  <span>{t.filters.statusLabel}</span>
+                  <select
+                    onChange={(event) => {
+                      if (isStatusFilter(event.target.value)) {
+                        setStatusFilter(event.target.value);
+                        setCurrentPage(1);
+                      }
+                    }}
+                    value={statusFilter}
+                  >
+                    <option value="all">{t.filters.anyStatus}</option>
+                    {([
+                      ["searching", t.filters.searching],
+                      ["found", t.filters.foundStatus],
+                      ["returned", t.filters.returned],
+                    ] as const).map(([value, label]) => (
+                      <option key={value} value={value}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              <footer className="filter-dialog-footer">
+                <button
+                  className="reset-button"
+                  onClick={resetFilters}
+                  type="button"
+                >
+                  {t.filters.reset}
+                </button>
+                <button
+                  className="filter-dialog-done"
+                  onClick={() => setIsFilterDialogOpen(false)}
+                  type="button"
+                >
+                  {t.filters.close}
+                </button>
+              </footer>
+            </section>
+          </div>
+        )}
 
         <div className="results-row" aria-live="polite">
           <span>
@@ -748,24 +872,47 @@ export default function Home() {
           </div>
         )}
 
-        {visibleCount < filteredItems.length && (
-          <div className="feed-load-more">
-            <Button onClick={() => setVisibleCount((count) => count + 12)} variant="outlined">
-              {language === "kk" ? "Тағы көрсету" : language === "en" ? "Load more" : "Показать ещё"}
-            </Button>
-          </div>
+        {pageCount > 1 && (
+          <nav className="feed-pagination" aria-label={t.pagination.label}>
+            <button
+              aria-label={t.pagination.previous}
+              className="pagination-direction"
+              disabled={activePage === 1}
+              onClick={() => goToPage(activePage - 1)}
+              type="button"
+            >
+              {t.pagination.previous}
+            </button>
+            {pageEntries.map((entry) =>
+              typeof entry === "number" ? (
+                <button
+                  aria-current={activePage === entry ? "page" : undefined}
+                  aria-label={`${entry}`}
+                  className={`pagination-page ${activePage === entry ? "active" : ""}`}
+                  key={entry}
+                  onClick={() => goToPage(entry)}
+                  type="button"
+                >
+                  {entry}
+                </button>
+              ) : (
+                <span aria-hidden="true" className="pagination-ellipsis" key={entry}>
+                  …
+                </span>
+              ),
+            )}
+            <button
+              aria-label={t.pagination.next}
+              className="pagination-direction"
+              disabled={activePage === pageCount}
+              onClick={() => goToPage(activePage + 1)}
+              type="button"
+            >
+              {t.pagination.next}
+            </button>
+          </nav>
         )}
 
-        <div className="bottom-cta">
-          <div className="cta-mark">f.</div>
-          <div>
-            <h3>{t.sections.bottomTitle}</h3>
-            <p>{t.sections.bottomText}</p>
-          </div>
-          <Button className="cta-button" variant="contained" href="/add">
-            {t.sections.publishFinding} <span aria-hidden="true">→</span>
-          </Button>
-        </div>
       </section>
 
       <SiteFooter />

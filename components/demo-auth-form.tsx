@@ -168,7 +168,6 @@ export default function DemoAuthForm({ mode }: DemoAuthFormProps) {
                 : isRegister
                   ? "Зарегистрироваться"
                   : "Войти"}
-              {!isSubmitting && <span aria-hidden="true">→</span>}
             </Button>
           </form>
 

@@ -417,7 +417,7 @@ export default function ItemDetail({ id }: { id: string }) {
                     <div className="item-match-hint">
                       <span aria-hidden="true">✦</span>
                       <p>Нашли {matches.length === 1 ? "похожее объявление" : "похожие объявления"} в кампусе.</p>
-                      <Link href="/profile?tab=notifications">Посмотреть совпадения →</Link>
+                      <Link href="/profile?tab=notifications">Посмотреть совпадения</Link>
                     </div>
                   )}
                   {item.status === "returned" && <p className="progress-success-note">Поиск завершён: объявление отмечено как возвращённое.</p>}

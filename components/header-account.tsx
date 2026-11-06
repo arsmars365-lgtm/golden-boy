@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Button from "@mui/material/Button";
 import Link from "next/link";
 import { useLanguage } from "@/components/language-provider";
 import { useDemoAuth } from "@/lib/use-demo-auth";
@@ -67,9 +66,6 @@ export default function HeaderAccount() {
         <Link className="login-button" href="/login">
           Войти
         </Link>
-        <Button className="publish-button" variant="contained" href="/add">
-          <span aria-hidden="true">＋</span> Разместить объявление
-        </Button>
       </div>
     );
   }
@@ -124,9 +120,6 @@ export default function HeaderAccount() {
           </Link>
         </>
       )}
-      <Button className="publish-button" variant="contained" href="/add">
-        <span aria-hidden="true">＋</span> Разместить объявление
-      </Button>
       {(sessionError || chatError) && (
         <span className="header-auth-error" role="status">
           {sessionError || chatError}

@@ -334,7 +334,7 @@ export default function ProfilePage() {
             <header className="profile-page-heading"><span className="section-kicker">ВАШ АККАУНТ</span><h1>Профиль</h1></header>
             {error && <Alert severity="error">{error}</Alert>}
             {message && <Alert severity="success">{message}</Alert>}
-            {profile?.role === "admin" && <Link className="profile-admin-link" href="/admin">Открыть панель администратора →</Link>}
+            {profile?.role === "admin" && <Link className="profile-admin-link" href="/admin">Открыть панель администратора</Link>}
             {profileLoading ? <p>Загружаем профиль…</p> : profile ? (
               <>
                 <section className="account-overview">
@@ -425,7 +425,7 @@ export default function ProfilePage() {
                                   <div>
                                     <span className="match-label">Подписка включена</span>
                                     <h3>{subscription.title}</h3>
-                                    <Link href={`/item/${encodeURIComponent(subscription.itemId)}`}>Открыть объявление →</Link>
+                                    <Link href={`/item/${encodeURIComponent(subscription.itemId)}`}>Открыть объявление</Link>
                                   </div>
                                   <Button onClick={() => unsubscribeFromItem(subscription.itemId)} variant="outlined">Отписаться</Button>
                                 </article>
@@ -440,7 +440,7 @@ export default function ProfilePage() {
                               <span className="match-label">{notification.read ? "Возможное совпадение" : "Новое совпадение"}</span>
                               <h3>Похожая вещь найдена: {notification.foundTitle}</h3>
                               <p>По объявлению «{notification.lostTitle}» · {notification.foundPlace} · {new Date(notification.createdAt).toLocaleDateString("ru-RU")}</p>
-                              <Link href={`/item/${encodeURIComponent(notification.foundItemId)}`} onClick={() => markRead(notification.id)}>Проверить находку →</Link>
+                              <Link href={`/item/${encodeURIComponent(notification.foundItemId)}`} onClick={() => markRead(notification.id)}>Проверить находку</Link>
                             </div>
                           </article>
                         ))}</div> : <div className="account-empty"><span aria-hidden="true">♧</span><h3>Новых совпадений пока нет</h3><p>Когда появится похожее объявление о находке, уведомление сохранится здесь.</p></div>}
