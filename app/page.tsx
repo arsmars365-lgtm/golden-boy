@@ -28,7 +28,7 @@ type Language = "kk" | "ru" | "en";
 type ItemType = "lost" | "found";
 type PaginationEntry = number | "start-ellipsis" | "end-ellipsis";
 
-const ITEMS_PER_PAGE = 6;
+const ITEMS_PER_PAGE = 9;
 
 type TextEntry = {
   ru: string;
