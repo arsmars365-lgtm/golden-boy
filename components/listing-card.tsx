@@ -65,7 +65,6 @@ export default function ListingCard({
             label={item.type === "lost" ? labels.lost : labels.found}
             size="small"
           />
-          <span className="art-date">{dateLabel}</span>
         </div>
         <div className="item-card-content">
           <div className="item-card-title-row">
@@ -79,6 +78,7 @@ export default function ListingCard({
             <span className="place-label">
               <Pin /> {place}
             </span>
+            <span className="art-date">{dateLabel}</span>
           </div>
           {item.ownerUsername && (
             <span className="item-author">

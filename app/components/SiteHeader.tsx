@@ -15,7 +15,7 @@ export function SiteHeader() {
             Лента
           </Link>
           <Link className="nav-link" href="/about">
-            О проекте
+            О нас
           </Link>
         </nav>
         <div className="header-actions">

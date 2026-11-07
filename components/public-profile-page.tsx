@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Alert from "@mui/material/Alert";
 import Link from "next/link";
+import BackLink from "@/components/back-link";
 import SiteFooter from "@/components/site-footer";
 import SiteHeader from "@/components/site-header";
 import VerifiedBadge from "@/components/verified-badge";
@@ -57,6 +58,7 @@ export default function PublicProfilePage({ username }: { username: string }) {
     <main className="foundly-shell container-fluid px-0">
       <SiteHeader />
       <section className="public-profile-page container">
+        <BackLink />
         {!ready ? <div className="detail-loading">Загружаем профиль…</div> : !profile ? (
           <div className="profile-empty"><h1>Профиль не найден</h1><Link href="/">Вернуться в ленту</Link></div>
         ) : (

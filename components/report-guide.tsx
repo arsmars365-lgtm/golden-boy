@@ -1,9 +1,9 @@
 "use client";
 
 import Button from "@mui/material/Button";
-import Link from "next/link";
 import SiteFooter from "@/components/site-footer";
 import SiteHeader from "@/components/site-header";
+import BackLink from "@/components/back-link";
 import { useLanguage } from "@/components/language-provider";
 import type { ItemType } from "@/lib/items";
 
@@ -13,7 +13,6 @@ type GuideContent = {
   instructionTitle: string;
   steps: [string, string, string];
   publish: string;
-  back: string;
 };
 
 const guideContent: Record<"kk" | "ru" | "en", Record<ItemType, GuideContent>> = {
@@ -28,7 +27,6 @@ const guideContent: Record<"kk" | "ru" | "en", Record<ItemType, GuideContent>> =
         "Заттың сипаттамасы мен табылған жерін көрсетіп, хабарландыруды жариялаңыз",
       ],
       publish: "Хабарландыру орналастыру",
-      back: "Артқа",
     },
     lost: {
       title: "Жоғалған зат туралы хабарлау",
@@ -40,7 +38,6 @@ const guideContent: Record<"kk" | "ru" | "en", Record<ItemType, GuideContent>> =
         "Затты және оны жоғалтқан жеріңізді сипаттаңыз",
       ],
       publish: "Хабарландыру орналастыру",
-      back: "Артқа",
     },
   },
   ru: {
@@ -54,7 +51,6 @@ const guideContent: Record<"kk" | "ru" | "en", Record<ItemType, GuideContent>> =
         "Укажите описание вещи и место находки, затем опубликуйте объявление",
       ],
       publish: "Разместить объявление",
-      back: "Назад",
     },
     lost: {
       title: "Сообщить о пропаже",
@@ -66,7 +62,6 @@ const guideContent: Record<"kk" | "ru" | "en", Record<ItemType, GuideContent>> =
         "Опишите вещь и место, где вы её потеряли",
       ],
       publish: "Разместить объявление",
-      back: "Назад",
     },
   },
   en: {
@@ -80,7 +75,6 @@ const guideContent: Record<"kk" | "ru" | "en", Record<ItemType, GuideContent>> =
         "Describe the item and where you found it, then publish the listing",
       ],
       publish: "Post a listing",
-      back: "Back",
     },
     lost: {
       title: "Report a lost item",
@@ -92,7 +86,6 @@ const guideContent: Record<"kk" | "ru" | "en", Record<ItemType, GuideContent>> =
         "Describe the item and where you lost it",
       ],
       publish: "Post a listing",
-      back: "Back",
     },
   },
 };
@@ -124,10 +117,7 @@ export default function ReportGuide({ type }: { type: ItemType }) {
       <SiteHeader />
       <section className="report-guide-section">
         <div className="report-guide-container container">
-          <Link className="report-guide-back" href="/">
-            <span aria-hidden="true">←</span>
-            {content.back}
-          </Link>
+          <BackLink />
           <article className={`report-guide-card report-guide-${type}`}>
             <div className="report-guide-heading">
               <span className="report-guide-icon">

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import { Suspense } from "react";
 import { Geist, Geist_Mono } from "next/font/google";
 import { FavoritesProvider } from "@/components/favorites-provider";
 import { LanguageProvider } from "@/components/language-provider";
@@ -34,7 +35,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <ItemNotificationsProvider>
           <LanguageProvider>
             <FavoritesProvider>
-              <RouteScrollToTop />
+              <Suspense fallback={null}>
+                <RouteScrollToTop />
+              </Suspense>
               {children}
             </FavoritesProvider>
           </LanguageProvider>

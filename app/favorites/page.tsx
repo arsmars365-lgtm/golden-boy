@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo } from "react";
 import SiteFooter from "@/components/site-footer";
 import SiteHeader from "@/components/site-header";
+import BackLink from "@/components/back-link";
 import ListingCard from "@/components/listing-card";
 import { useFavorites } from "@/components/favorites-provider";
 import { useLanguage } from "@/components/language-provider";
@@ -28,6 +29,7 @@ export default function FavoritesPage() {
     <main className="foundly-shell container-fluid px-0">
       <SiteHeader active="favorites" />
       <section className="feed-section container favorites-page">
+        <BackLink />
         <div className="feed-heading favorites-heading">
           <div>
             <span className="section-kicker">{t("favorites.kicker")}</span>
@@ -57,7 +59,7 @@ export default function FavoritesPage() {
         ) : (
           <div className="row g-4 item-grid">
             {favorites.map((item) => (
-              <div className="col-12 col-sm-6 col-lg-4" key={item.id}>
+              <div className="col-12 col-sm-6 col-lg-4 col-xl-3" key={item.id}>
                 <ListingCard
                   item={item}
                   title={item.title}

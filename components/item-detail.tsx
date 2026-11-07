@@ -12,6 +12,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import SiteFooter from "@/components/site-footer";
 import SiteHeader from "@/components/site-header";
+import BackLink from "@/components/back-link";
 import { useLanguage } from "@/components/language-provider";
 import { categoryTranslationKey, type Language } from "@/lib/messages";
 import {
@@ -30,6 +31,7 @@ import { useDemoAuth } from "@/lib/use-demo-auth";
 import VerifiedBadge from "@/components/verified-badge";
 import { useFavoriteItems } from "@/lib/use-favorite-items";
 import { getLostItemProgress, getSimilarFoundItems } from "@/lib/item-matching";
+import { OPEN_NOTIFICATIONS_EVENT } from "@/lib/use-item-notifications";
 import { useItemNotifications } from "@/lib/use-item-notifications";
 
 function formattedDate(item: Item, language: Language) {
@@ -261,6 +263,7 @@ export default function ItemDetail({ id }: { id: string }) {
       <SiteHeader active="item" />
 
       <section className="detail-page container">
+        <BackLink />
         <div className="form-breadcrumb">
           <Link href="/">Лента</Link>
           <span aria-hidden="true">/</span>
@@ -417,7 +420,13 @@ export default function ItemDetail({ id }: { id: string }) {
                     <div className="item-match-hint">
                       <span aria-hidden="true">✦</span>
                       <p>Нашли {matches.length === 1 ? "похожее объявление" : "похожие объявления"} в кампусе.</p>
-                      <Link href="/profile?tab=notifications">Посмотреть совпадения</Link>
+                      <button
+                        className="item-match-notifications-button"
+                        onClick={() => window.dispatchEvent(new Event(OPEN_NOTIFICATIONS_EVENT))}
+                        type="button"
+                      >
+                        Посмотреть совпадения
+                      </button>
                     </div>
                   )}
                   {item.status === "returned" && <p className="progress-success-note">Поиск завершён: объявление отмечено как возвращённое.</p>}

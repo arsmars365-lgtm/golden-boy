@@ -6,6 +6,7 @@ import Button from "@mui/material/Button";
 import Link from "next/link";
 import SiteFooter from "@/components/site-footer";
 import SiteHeader from "@/components/site-header";
+import BackLink from "@/components/back-link";
 import type { Profile } from "@/lib/profiles";
 import { getSupabaseClient } from "@/lib/supabase";
 import { useDemoAuth } from "@/lib/use-demo-auth";
@@ -132,6 +133,7 @@ export default function AdminPage() {
     <main className="foundly-shell container-fluid px-0">
       <SiteHeader />
       <section className="admin-page container">
+        <BackLink />
         {!isReady || loading ? <p>Загружаем панель…</p> : !user ? (
           <div className="profile-empty"><h1>Войдите в аккаунт</h1><Button href="/login" variant="contained">Войти</Button></div>
         ) : profile?.role !== "admin" ? (

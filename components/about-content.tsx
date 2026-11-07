@@ -2,6 +2,7 @@
 
 import SiteFooter from "@/components/site-footer";
 import SiteHeader from "@/components/site-header";
+import BackLink from "@/components/back-link";
 
 const faq = [
   {
@@ -31,6 +32,7 @@ export default function AboutContent() {
     <main className="foundly-shell container-fluid px-0">
       <SiteHeader active="about" />
       <section className="about-page container">
+        <BackLink />
         <div className="about-hero">
           <span className="section-kicker">FOUNDLY · СООБЩЕСТВО КАМПУСА</span>
           <h1>Пусть каждая вещь найдёт дорогу домой.</h1>

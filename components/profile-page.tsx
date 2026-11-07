@@ -11,6 +11,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import SiteFooter from "@/components/site-footer";
 import SiteHeader from "@/components/site-header";
+import BackLink from "@/components/back-link";
 import VerifiedBadge from "@/components/verified-badge";
 import { getCurrentProfile, isValidUsername, type Profile } from "@/lib/profiles";
 import { useDemoAuth } from "@/lib/use-demo-auth";
@@ -19,14 +20,12 @@ import { useStoredItems } from "@/lib/use-stored-items";
 import { deleteStoredItem, getAllItems, updateStoredItem, type Item } from "@/lib/items";
 import { getLostItemProgress, getSimilarFoundItems } from "@/lib/item-matching";
 import { useFavoriteItems } from "@/lib/use-favorite-items";
-import { useItemNotifications } from "@/lib/use-item-notifications";
 
-type ProfileTab = "listings" | "favorites" | "notifications" | "settings";
+type ProfileTab = "listings" | "favorites" | "settings";
 
 const profileTabs: { id: ProfileTab; label: string }[] = [
   { id: "listings", label: "Мои объявления" },
   { id: "favorites", label: "Избранное" },
-  { id: "notifications", label: "Уведомления" },
   { id: "settings", label: "Редактирование" },
 ];
 
@@ -36,18 +35,6 @@ export default function ProfilePage() {
   const { user, isReady } = useDemoAuth();
   const { items: storedItems, error: itemsError, isReady: itemsReady } = useStoredItems();
   const { favoriteIds, toggleFavorite, error: favoritesError } = useFavoriteItems(user?.id ?? null);
-  const {
-    notifications,
-    subscriptions,
-    unreadCount,
-    permission,
-    isConnected: notificationsConnected,
-    error: notificationsError,
-    markRead,
-    markAllRead,
-    unsubscribeFromItem,
-    enableBrowserNotifications,
-  } = useItemNotifications();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [profileLoading, setProfileLoading] = useState(true);
   const [username, setUsername] = useState("");
@@ -74,7 +61,7 @@ export default function ProfilePage() {
 
   const requestedTab = searchParams.get("tab");
   const activeTab: ProfileTab =
-    requestedTab === "favorites" || requestedTab === "notifications" || requestedTab === "settings"
+    requestedTab === "favorites" || requestedTab === "settings"
       ? requestedTab
       : "listings";
 
@@ -327,6 +314,7 @@ export default function ProfilePage() {
     <main className="foundly-shell container-fluid px-0">
       <SiteHeader />
       <section className="profile-edit-page container">
+        <BackLink />
         {!isReady ? <p>Проверяем аккаунт…</p> : !user ? (
           <div className="profile-empty"><h1>Войдите в аккаунт</h1><p>Чтобы просматривать и редактировать профиль.</p><Button href="/login" variant="contained">Войти</Button></div>
         ) : (
@@ -352,7 +340,6 @@ export default function ProfilePage() {
                   <article><strong>{ownItems.length}</strong><span>объявлений</span></article>
                   <article><strong>{ownItems.filter((item) => item.status === "returned").length}</strong><span>возвращено</span></article>
                   <article><strong>{favoriteIds.length}</strong><span>в избранном</span></article>
-                  <article><strong>{notifications.length}</strong><span>похожих находок</span></article>
                 </div>
                 <div className="profile-signout-row">
                   <Button
@@ -376,7 +363,6 @@ export default function ProfilePage() {
                     >
                       {tab.label}
                       {tab.id === "favorites" && favoriteIds.length > 0 && <span>{favoriteIds.length}</span>}
-                      {tab.id === "notifications" && unreadCount > 0 && <span>{unreadCount}</span>}
                     </button>
                   ))}
                 </div>
@@ -394,57 +380,6 @@ export default function ProfilePage() {
                       <>
                         <div className="account-section-heading"><div><span className="section-kicker">СОХРАНЁННОЕ</span><h2>Избранное</h2></div></div>
                         {favoriteItems.length ? <div className="account-list">{favoriteItems.map((item) => renderItemRow(item, true))}</div> : <div className="account-empty"><span aria-hidden="true">♡</span><h3>Пока ничего не сохранено</h3><p>Нажмите на сердечко в объявлении, чтобы быстро вернуться к нему.</p><Button href="/" variant="outlined">Посмотреть объявления</Button></div>}
-                      </>
-                    )}
-                    {activeTab === "notifications" && (
-                      <>
-                        <div className="account-section-heading">
-                          <div><span className="section-kicker">ПОМОГАЕМ НАЙТИ БЫСТРЕЕ</span><h2>Похожие находки</h2></div>
-                          {unreadCount > 0 && <Button onClick={markAllRead} variant="outlined">Прочитать все</Button>}
-                        </div>
-                        <p className="notification-explainer">Показываем совпадения по категории или словам в названии среди объявлений кампуса. Это подсказки, а не подтверждение, что вещь ваша.</p>
-                        <div className="notification-controls">
-                          <span className={`notification-connection ${notificationsConnected ? "is-connected" : ""}`}>
-                            <span aria-hidden="true" />{notificationsConnected ? "Онлайн-обновления включены" : "Подключаем онлайн-обновления…"}
-                          </span>
-                          {permission === "default" && (
-                            <Button onClick={() => void enableBrowserNotifications()} variant="outlined">Включить уведомления браузера</Button>
-                          )}
-                          {permission === "granted" && <span className="notification-permission">Системные уведомления включены</span>}
-                          {permission === "denied" && <span className="notification-permission">Уведомления заблокированы в настройках браузера</span>}
-                          {permission === "unsupported" && <span className="notification-permission">Браузер не поддерживает системные уведомления</span>}
-                        </div>
-                        {notificationsError && <Alert severity="error">{notificationsError}</Alert>}
-                        {subscriptions.length > 0 && (
-                          <section className="active-subscriptions">
-                            <h3>Отслеживаемые объявления</h3>
-                            <div className="match-list">
-                              {subscriptions.map((subscription) => (
-                                <article className="match-card subscription-card" key={subscription.itemId}>
-                                  <span className="match-card-icon" aria-hidden="true">⌕</span>
-                                  <div>
-                                    <span className="match-label">Подписка включена</span>
-                                    <h3>{subscription.title}</h3>
-                                    <Link href={`/item/${encodeURIComponent(subscription.itemId)}`}>Открыть объявление</Link>
-                                  </div>
-                                  <Button onClick={() => unsubscribeFromItem(subscription.itemId)} variant="outlined">Отписаться</Button>
-                                </article>
-                              ))}
-                            </div>
-                          </section>
-                        )}
-                        {notifications.length ? <div className="match-list">{notifications.map((notification) => (
-                          <article className={`match-card ${notification.read ? "" : "is-unread"}`} key={notification.id}>
-                            <span className="match-card-icon" aria-hidden="true">✦</span>
-                            <div>
-                              <span className="match-label">{notification.read ? "Возможное совпадение" : "Новое совпадение"}</span>
-                              <h3>Похожая вещь найдена: {notification.foundTitle}</h3>
-                              <p>По объявлению «{notification.lostTitle}» · {notification.foundPlace} · {new Date(notification.createdAt).toLocaleDateString("ru-RU")}</p>
-                              <Link href={`/item/${encodeURIComponent(notification.foundItemId)}`} onClick={() => markRead(notification.id)}>Проверить находку</Link>
-                            </div>
-                          </article>
-                        ))}</div> : <div className="account-empty"><span aria-hidden="true">♧</span><h3>Новых совпадений пока нет</h3><p>Когда появится похожее объявление о находке, уведомление сохранится здесь.</p></div>}
-                        <p className="notification-footnote">Онлайн-уведомления и системные уведомления браузера работают, пока сайт открыт. Доставка при закрытом браузере потребует отдельной настройки Web Push.</p>
                       </>
                     )}
                     {activeTab === "settings" && (

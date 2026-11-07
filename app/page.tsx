@@ -3,7 +3,6 @@
 import Button from "@mui/material/Button";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { DemoNotice } from "@/app/components/SiteHeader";
 import { useFavorites } from "@/components/favorites-provider";
 import ListingCard from "@/components/listing-card";
 import SiteFooter from "@/components/site-footer";
@@ -27,8 +26,20 @@ function isStatusFilter(value: string): value is StatusFilter {
 type Language = "kk" | "ru" | "en";
 type ItemType = "lost" | "found";
 type PaginationEntry = number | "start-ellipsis" | "end-ellipsis";
+type Filters = {
+  category: string;
+  type: "all" | ItemType;
+  time: TimeFilter;
+  status: StatusFilter;
+};
 
 const ITEMS_PER_PAGE = 9;
+const DEFAULT_FILTERS: Filters = {
+  category: "all",
+  type: "all",
+  time: "all",
+  status: "all",
+};
 
 type TextEntry = {
   ru: string;
@@ -58,11 +69,17 @@ type TranslationSet = {
     publish: string;
   };
   hero: {
-    title: string;
     searchPlaceholder: string;
     searchButton: string;
     reportFound: string;
     reportLost: string;
+  };
+  promo: {
+    kicker: string;
+    title: string;
+    description: string;
+    action: string;
+    creativeTitle: string;
   };
   filters: {
     categoryLabel: string;
@@ -133,16 +150,22 @@ const translations: Record<Language, TranslationSet> = {
   kk: {
     nav: {
       feed: "Лента",
-      about: "Жоба туралы",
+      about: "Біз туралы",
       login: "Кіру",
       publish: "Елдеді жариялау",
     },
     hero: {
-      title: "Жоғалттыңыз ба, әлде таптыңыз ба?",
       searchPlaceholder: "Не іздеп жатырмыз? Мысалы, құлаққап",
       searchButton: "Затты табу",
       reportFound: "Табылған зат туралы хабарлау",
       reportLost: "Жоғалған зат туралы хабарлау",
+    },
+    promo: {
+      kicker: "FOUNDLY · ҚАУЫМДАСТЫҚ КӨМЕГІ",
+      title: "Жоғалттыңыз ба, әлде таптыңыз ба?",
+      description: "Жоғалған және табылған заттар туралы хабарландыруларды бір жерден іздеңіз.",
+      action: "Хабарландыруларды көру",
+      creativeTitle: "ІЗДЕЙМІЗ. ТАБАМЫЗ. ҚАЙТАРАМЫЗ.",
     },
     filters: {
       categoryLabel: "Санат",
@@ -209,16 +232,22 @@ const translations: Record<Language, TranslationSet> = {
   ru: {
     nav: {
       feed: "Лента",
-      about: "О проекте",
+      about: "О нас",
       login: "Войти",
       publish: "Разместить объявление",
     },
     hero: {
-      title: "Потерял или нашёл?",
       searchPlaceholder: "Что ищем? Например, наушники",
       searchButton: "Найти вещь",
       reportFound: "Заявить о находке",
       reportLost: "Заявить о пропаже",
+    },
+    promo: {
+      kicker: "FOUNDLY · ПОМОЩЬ СООБЩЕСТВА",
+      title: "Потерял или нашёл?",
+      description: "Ищите потерянные вещи и сообщайте о находках в одном месте.",
+      action: "Смотреть объявления",
+      creativeTitle: "ИЩЕМ. НАХОДИМ. ВОЗВРАЩАЕМ.",
     },
     filters: {
       categoryLabel: "Категория",
@@ -285,16 +314,22 @@ const translations: Record<Language, TranslationSet> = {
   en: {
     nav: {
       feed: "Feed",
-      about: "About",
+      about: "About us",
       login: "Log in",
       publish: "Post an ad",
     },
     hero: {
-      title: "Lost or found something?",
       searchPlaceholder: "What are we looking for? For example, headphones",
       searchButton: "Find item",
       reportFound: "Report a found item",
       reportLost: "Report a lost item",
+    },
+    promo: {
+      kicker: "FOUNDLY · COMMUNITY-POWERED",
+      title: "Lost or found something?",
+      description: "Find lost items and share your discoveries, all in one place.",
+      action: "Browse listings",
+      creativeTitle: "SEARCH. FIND. RETURN.",
     },
     filters: {
       categoryLabel: "Category",
@@ -488,10 +523,9 @@ function Magnifier() {
 export default function Home() {
   const { language } = useLanguage();
   const [query, setQuery] = useState("");
-  const [typeFilter, setTypeFilter] = useState<"all" | ItemType>("all");
-  const [category, setCategory] = useState<string>("all");
-  const [timeFilter, setTimeFilter] = useState<TimeFilter>("all");
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [draftQuery, setDraftQuery] = useState("");
+  const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
+  const [draftFilters, setDraftFilters] = useState<Filters>(DEFAULT_FILTERS);
   const [isFilterDialogOpen, setIsFilterDialogOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const { items: storedItems, error: storageError } = useStoredItems();
@@ -504,10 +538,10 @@ export default function Home() {
   const items = useMemo(() => getAllItems(storedItems), [storedItems]);
 
   const t = translations[language];
-  const activeFilterCount = Number(category !== "all") +
-    Number(typeFilter !== "all") +
-    Number(timeFilter !== "all") +
-    Number(statusFilter !== "all");
+  const activeFilterCount = Number(filters.category !== "all") +
+    Number(filters.type !== "all") +
+    Number(filters.time !== "all") +
+    Number(filters.status !== "all");
 
   useEffect(() => {
     if (!isFilterDialogOpen) return;
@@ -548,18 +582,18 @@ export default function Home() {
         searchableText.some((value) =>
           value.toLocaleLowerCase(language).includes(normalizedQuery),
         );
-      const matchesType = typeFilter === "all" || item.type === typeFilter;
+      const matchesType = filters.type === "all" || item.type === filters.type;
       const matchesStatus =
-        statusFilter === "all" ||
-        (statusFilter === "found"
+        filters.status === "all" ||
+        (filters.status === "found"
           ? item.type === "found"
-          : item.status === statusFilter);
+          : item.status === filters.status);
       const itemCategory = localizedItem?.categoryKey ?? categoryKeyByName[item.category];
-      const matchesCategory = category === "all" || itemCategory === category;
+      const matchesCategory = filters.category === "all" || itemCategory === filters.category;
       const matchesTime =
-        timeFilter === "all" ||
-        (timeFilter === "today" && age === 0) ||
-        (timeFilter === "week" && age >= 0 && age <= 7);
+        filters.time === "all" ||
+        (filters.time === "today" && age === 0) ||
+        (filters.time === "week" && age >= 0 && age <= 7);
 
       return (
         matchesQuery &&
@@ -569,7 +603,7 @@ export default function Home() {
         matchesTime
       );
     });
-  }, [category, items, language, query, statusFilter, timeFilter, today, typeFilter]);
+  }, [filters, items, language, query, today]);
   const pageCount = Math.ceil(filteredItems.length / ITEMS_PER_PAGE);
   const activePage = Math.min(currentPage, Math.max(pageCount, 1));
   const visibleItems = filteredItems.slice(
@@ -594,11 +628,20 @@ export default function Home() {
 
   function resetFilters() {
     setQuery("");
-    setTypeFilter("all");
-    setCategory("all");
-    setTimeFilter("all");
-    setStatusFilter("all");
+    setFilters(DEFAULT_FILTERS);
     setCurrentPage(1);
+  }
+
+  function resetDraftFilters() {
+    setDraftFilters(DEFAULT_FILTERS);
+    setDraftQuery("");
+  }
+
+  function applyDraftFilters() {
+    setQuery(draftQuery);
+    setFilters(draftFilters);
+    setCurrentPage(1);
+    setIsFilterDialogOpen(false);
   }
 
   function goToPage(page: number) {
@@ -613,11 +656,30 @@ export default function Home() {
     <main className="foundly-shell container-fluid px-0">
       <SiteHeader />
 
+      <section aria-label="Foundly" className="foundly-promo">
+        <div className="foundly-promo-inner container">
+          <div className="foundly-promo-copy">
+            <span className="foundly-promo-kicker">{t.promo.kicker}</span>
+            <h1>{t.promo.title}</h1>
+            <p>{t.promo.description}</p>
+            <Link className="foundly-promo-action" href="#feed">
+              {t.promo.action}
+              <span aria-hidden="true">→</span>
+            </Link>
+          </div>
+          <div aria-hidden="true" className="foundly-promo-art">
+            <span className="foundly-promo-orbit foundly-promo-orbit-outer" />
+            <span className="foundly-promo-orbit foundly-promo-orbit-inner" />
+            <div className="foundly-promo-art-content">
+              <span className="foundly-promo-wordmark">foundly</span>
+              <span className="foundly-promo-art-title">{t.promo.creativeTitle}</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <section className="hero-section">
         <div className="container hero-content">
-          <div className="hero-copy">
-            <h1>{t.hero.title}</h1>
-          </div>
           <div className="report-actions">
             <Link className="report-action report-action-found" href="/report/found">
               <svg aria-hidden="true" fill="none" viewBox="0 0 24 24">
@@ -663,7 +725,11 @@ export default function Home() {
             aria-haspopup="dialog"
             aria-label={t.filters.open}
             className="filter-open-button"
-            onClick={() => setIsFilterDialogOpen(true)}
+            onClick={() => {
+              setDraftQuery(query);
+              setDraftFilters(filters);
+              setIsFilterDialogOpen(true);
+            }}
             type="button"
           >
             <svg aria-hidden="true" fill="none" viewBox="0 0 24 24">
@@ -677,8 +743,6 @@ export default function Home() {
             )}
           </button>
         </div>
-        <DemoNotice />
-
         {isFilterDialogOpen && (
           <div
             className="filter-dialog-backdrop"
@@ -710,10 +774,12 @@ export default function Home() {
                   <span>{t.filters.categoryLabel}</span>
                   <select
                     onChange={(event) => {
-                      setCategory(event.target.value);
-                      setCurrentPage(1);
+                      setDraftFilters((current) => ({
+                        ...current,
+                        category: event.target.value,
+                      }));
                     }}
-                    value={category}
+                    value={draftFilters.category}
                   >
                     {categoryOptions.map((option) => (
                       <option key={option.value} value={option.value}>
@@ -731,12 +797,11 @@ export default function Home() {
                       ["found", t.filters.found],
                     ] as const).map(([value, label]) => (
                       <button
-                        aria-pressed={typeFilter === value}
-                        className={`type-tab ${typeFilter === value ? "selected" : ""}`}
+                        aria-pressed={draftFilters.type === value}
+                        className={`type-tab ${draftFilters.type === value ? "selected" : ""}`}
                         key={value}
                         onClick={() => {
-                          setTypeFilter(value);
-                          setCurrentPage(1);
+                          setDraftFilters((current) => ({ ...current, type: value }));
                         }}
                         type="button"
                       >
@@ -754,12 +819,11 @@ export default function Home() {
                       ["all", t.filters.allTime],
                     ] as const).map(([value, label]) => (
                       <button
-                        aria-pressed={timeFilter === value}
-                        className={`date-filter ${timeFilter === value ? "selected" : ""}`}
+                        aria-pressed={draftFilters.time === value}
+                        className={`date-filter ${draftFilters.time === value ? "selected" : ""}`}
                         key={value}
                         onClick={() => {
-                          setTimeFilter(value);
-                          setCurrentPage(1);
+                          setDraftFilters((current) => ({ ...current, time: value }));
                         }}
                         type="button"
                       >
@@ -772,12 +836,15 @@ export default function Home() {
                   <span>{t.filters.statusLabel}</span>
                   <select
                     onChange={(event) => {
-                      if (isStatusFilter(event.target.value)) {
-                        setStatusFilter(event.target.value);
-                        setCurrentPage(1);
+                      const status = event.target.value;
+                      if (isStatusFilter(status)) {
+                        setDraftFilters((current) => ({
+                          ...current,
+                          status,
+                        }));
                       }
                     }}
-                    value={statusFilter}
+                    value={draftFilters.status}
                   >
                     <option value="all">{t.filters.anyStatus}</option>
                     {([
@@ -795,14 +862,14 @@ export default function Home() {
               <footer className="filter-dialog-footer">
                 <button
                   className="reset-button"
-                  onClick={resetFilters}
+                  onClick={resetDraftFilters}
                   type="button"
                 >
                   {t.filters.reset}
                 </button>
                 <button
                   className="filter-dialog-done"
-                  onClick={() => setIsFilterDialogOpen(false)}
+                  onClick={applyDraftFilters}
                   type="button"
                 >
                   {t.filters.close}
@@ -818,10 +885,10 @@ export default function Home() {
             {filteredItems.length === 1 ? t.filters.resultSingular : t.filters.resultPlural}
           </span>
           {(query ||
-            category !== "all" ||
-            typeFilter !== "all" ||
-            timeFilter !== "all" ||
-            statusFilter !== "all") && (
+            filters.category !== "all" ||
+            filters.type !== "all" ||
+            filters.time !== "all" ||
+            filters.status !== "all") && (
             <button className="reset-button" onClick={resetFilters} type="button">
               {t.filters.reset} <span aria-hidden="true">×</span>
             </button>
@@ -844,7 +911,7 @@ export default function Home() {
               const itemCategory = localizedItem?.categoryKey ?? categoryKeyByName[item.category];
 
               return (
-                <div className="col-12 col-sm-6 col-lg-4" key={item.id}>
+                <div className="col-12 col-sm-6 col-lg-4 col-xl-3" key={item.id}>
                   <ListingCard
                     item={item}
                     title={title}

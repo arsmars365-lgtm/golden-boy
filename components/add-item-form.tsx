@@ -12,6 +12,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import SiteFooter from "@/components/site-footer";
 import SiteHeader from "@/components/site-header";
+import BackLink from "@/components/back-link";
 import { useLanguage } from "@/components/language-provider";
 import {
   getDaysAgo,
@@ -233,6 +234,7 @@ export default function AddItemForm({
 
       <section className="form-page">
         <div className="container form-page-container">
+          <BackLink />
           <div className="form-breadcrumb">
             <Link href="/">{t("form.breadcrumbFeed")}</Link>
             <span aria-hidden="true">/</span>

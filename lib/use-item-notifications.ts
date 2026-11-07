@@ -36,6 +36,7 @@ export type ItemSubscription = {
 
 const NOTIFICATIONS_EVENT = "foundly-notifications-updated";
 const PERMISSION_EVENT = "foundly-notification-permission-changed";
+export const OPEN_NOTIFICATIONS_EVENT = "foundly-open-notifications";
 const STORAGE_ERROR = "__foundly_notifications_storage_error__";
 
 function storageKey(userId: string) {
