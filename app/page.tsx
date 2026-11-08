@@ -984,6 +984,5 @@ export default function Home() {
 
       <SiteFooter />
     </main>
-  // testtesttest
 );
 }
