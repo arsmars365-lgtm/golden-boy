@@ -208,16 +208,18 @@ export default function HeaderAccount({
             href="/messages"
             title={t("nav.messages")}
           >
-            <svg aria-hidden="true" fill="none" viewBox="0 0 24 24">
-              <path d="M20 11.5a7.5 7.5 0 0 1-7.5 7.5H5l1.7-3.1A7.5 7.5 0 1 1 20 11.5Z" />
-              <path d="M8.5 11.5h7M8.5 14.5h4" />
-            </svg>
+            <span className="header-messages-icon">
+              <svg aria-hidden="true" fill="none" viewBox="0 0 24 24">
+                <path d="M20 11.5a7.5 7.5 0 0 1-7.5 7.5H5l1.7-3.1A7.5 7.5 0 1 1 20 11.5Z" />
+                <path d="M8.5 11.5h7M8.5 14.5h4" />
+              </svg>
+              {unreadChatCount > 0 && (
+                <span aria-hidden="true" className="notification-count-badge">
+                  {unreadChatCount > 99 ? "99+" : unreadChatCount}
+                </span>
+              )}
+            </span>
             <span>{t("nav.chat")}</span>
-            {unreadChatCount > 0 && (
-              <span aria-hidden="true" className="notification-count-badge">
-                {unreadChatCount > 99 ? "99+" : unreadChatCount}
-              </span>
-            )}
           </Link>
           <Link
             aria-label={t("nav.favorites")}

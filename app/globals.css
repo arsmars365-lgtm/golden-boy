@@ -7854,10 +7854,21 @@ html[data-theme="dark"] .header-user-avatar:focus-visible {
   stroke-width: 1.9;
 }
 
-.header-notifications-link .notification-count-badge,
-.header-messages-link .notification-count-badge {
+.header-messages-icon {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+}
+
+.header-notifications-link .notification-count-badge {
   top: 0;
   right: -8px;
+  border-color: #092d30;
+}
+
+.header-messages-icon .notification-count-badge {
+  top: -6px;
+  right: -6px;
   border-color: #092d30;
 }
 
@@ -7964,7 +7975,7 @@ html[data-theme="dark"] .header-user-avatar:focus-visible {
     gap: 20px;
   }
 
-  .header-messages-link > span,
+  .header-messages-link > span:not(.header-messages-icon),
   .header-notifications-link > span:not(.notification-count-badge),
   .header-profile-link > span {
     display: none;

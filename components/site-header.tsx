@@ -35,7 +35,6 @@ export default function SiteHeader({ active = "none" }: SiteHeaderProps) {
             {([
               ["kk", "Қаз", "Қазақша"],
               ["ru", "Рус", "Русский"],
-              ["en", "Eng", "English"],
             ] as const).map(([value, shortLabel, label]) => (
               <button
                 aria-label={label}
